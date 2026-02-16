@@ -1,48 +1,53 @@
-# Art Grid SVG Generator
+# Art Grid Generator
 
-A procedural art generator that creates geometric compositions similar to the reference image, with interactive editing capabilities.
+A geometric art composition generator that creates unique SVG artwork.
 
 ## Features
 
-- **Procedural Generation**: Generates art compositions with configurable parameters
-- **Shape Types**: Rectangles and circles with various patterns
-- **Patterns**: Solid fills, hatching, cross-hatching, dots, checkerboard, and stripes
-- **Interactive Editing**:
-  - Pan and zoom with mouse wheel
-  - Drag shapes to reposition them
-  - Select and delete individual shapes
-  - Click on shapes in the entity list to select them
-- **Persistent State**: Saves your last generated composition and settings
-- **SVG Export**: Download high-quality SVG files
-
-## Controls
-
-### Generation
-- **Seed**: Random seed for reproducible compositions (or click "Randomize Seed")
-- **Width/Height**: Canvas dimensions in pixels
-- **Shape Count**: Number of main shapes to generate (20-200)
-- **Min/Max Size**: Size range for generated shapes
-
-### Interaction
-- **Mouse Wheel**: Zoom in/out
-- **Click + Drag** (on background): Pan the canvas
-- **Click + Drag** (on shape): Move the shape
-- **Click** (on shape or in list): Select a shape
-- **Delete/Backspace**: Delete selected shape
-
-## Architecture
-
-Built using the same UX pattern as the floor-plan tool from brush-editor:
-
-- `art-grid-engine.js`: Core generation algorithm
-- `art-grid-tool.js`: UI controls and interaction logic
-- `tui.css`: Terminal-style UI styling (copied from brush-editor)
+- Generate random geometric art grids
+- Customize dimensions, shape count, sizes, and patterns
+- Interactive canvas with pan, zoom, and shape manipulation
+- Export high-quality SVG files
+- Automatic clipping to ensure shapes stay within bounds
 
 ## Development
 
 ```bash
-npm run dev     # Start dev server
-npm run build   # Build for production
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
-The app runs at http://localhost:5173/
+## GitHub Pages Deployment
+
+This project is configured to automatically deploy to GitHub Pages when you push to the `main` branch.
+
+### Setup Instructions
+
+1. Push this repository to GitHub
+2. Go to your repository Settings → Pages
+3. Under "Build and deployment", select **Source: GitHub Actions**
+4. Push to the `main` branch to trigger deployment
+
+The site will be available at: `https://<username>.github.io/<repository-name>/`
+
+### Manual Deployment
+
+You can also trigger a manual deployment:
+- Go to the Actions tab in your GitHub repository
+- Select "Deploy to GitHub Pages" workflow
+- Click "Run workflow" → "Run workflow"
+
+## Technologies
+
+- Vanilla JavaScript
+- Vite
+- SVG
