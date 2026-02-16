@@ -1,0 +1,324 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="-61.1669926463394 -78.5258463449689 582.6345958635726 1276.247209986874" data-base-viewbox="0 0 512 512" role="img" aria-label="Generated art grid" class="">
+  <metadata id="occult-floorplan-meta">JTdCJTIyc2VlZCUyMiUzQTM4MzI5ODUwMzAlMkMlMjJzaGFwZXMlMjIlM0ElNUIlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTYwMTY3NiUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBMjAyLjAyMTQ4NDg1MTgzNzE2JTJDJTIyeSUyMiUzQTMxNC41NzQ2NTA0MDY4Mzc0NiUyQyUyMnNpemUlMjIlM0E3MiUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmYwMDAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMnNvbGlkJTIyJTJDJTIycm90YXRpb24lMjIlM0ExMjMuMjIyOTU4NjY5MDY2NDMlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTk1NjU5NSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTE1Ny4xOTIwNTM1NTY0NDIyNiUyQyUyMnklMjIlM0E0MzkuODgzNzI5MTAwMjI3MzYlMkMlMjJzaXplJTIyJTNBMjIlMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwMDBmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJoYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMTI4LjkzMzAzNTgyNDQ0Nzg3JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS0yNjkyMjMlMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0E0Ny43Mzc5MzkzNTc3NTc1NyUyQyUyMnklMjIlM0E0ODMuNDEwODE0MTY2MDY5MDMlMkMlMjJzaXplJTIyJTNBMzMlMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwZmYwMCUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJzdHJpcGVzJTIyJTJDJTIycm90YXRpb24lMjIlM0EyODcuNTc1MjUwODQ1NDAyNSU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtNzk2MjIxJTIyJTJDJTIydHlwZSUyMiUzQSUyMmNpcmNsZSUyMiUyQyUyMnglMjIlM0EzOTcuMDUxMjA5NTY4OTc3MzYlMkMlMjJ5JTIyJTNBNTExLjM5ODk1MzY3NjIyMzc1JTJDJTIyc2l6ZSUyMiUzQTEwNCUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmYwMDAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMnN0cmlwZXMlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTczLjk1NTIwNzQ3NjM5MjM5JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS0xNTA5MSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTM1OS40Mzc5NzQyMTQ1NTM4MyUyQyUyMnklMjIlM0E1MDIuODQxOTAxNTQwNzU2MiUyQyUyMnNpemUlMjIlM0ExMTklMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwMDBmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJzb2xpZCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMzIxLjI4MzYxMDg5MTU1MDglN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTc2OTUwNyUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBNDA0LjQ5ODIyMDkyMDU2Mjc0JTJDJTIyeSUyMiUzQTE5OS4yNzE1NzQwMjAzODU3NCUyQyUyMnNpemUlMjIlM0E3MyUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmYwMDAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmNoZWNrZXJib2FyZCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBNi4yMTQzMzk1NzQ3OTg5NDIlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTI5MjMyMyUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTM3Ny4yNTcxODM5MDk0MTYyJTJDJTIyeSUyMiUzQTMwNC41NTYwMTg5NDg1NTUlMkMlMjJzaXplJTIyJTNBODIlMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmZmZmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJoYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBNjcuMjcxMTE4NjM5MDM3MDElN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTc0Nzc3OCUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBNDI2LjM2Nzc5ODA4OTk4MTElMkMlMjJ5JTIyJTNBMzg4LjU1MjQxMjYyOTEyNzUlMkMlMjJzaXplJTIyJTNBNTIlMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmMDBmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJoYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBNjYuMjYzNjAyNjQ2MDY3NzQlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTE4MzI4NiUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTM4OS4xNzczMTA3MDUxODQ5NCUyQyUyMnklMjIlM0EyODQuOTU2NzU1MTYxMjg1NCUyQyUyMnNpemUlMjIlM0EzOCUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmZmZmZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmRvdHMlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTE5NC41MDA2OTc1OTk3MjM5NCU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtMTAyOTMxJTIyJTJDJTIydHlwZSUyMiUzQSUyMmNpcmNsZSUyMiUyQyUyMnglMjIlM0EzNzguMTQwMDcxOTg4MTA1OCUyQyUyMnklMjIlM0EyOTguMjIwNTYwOTA4MzE3NTclMkMlMjJzaXplJTIyJTNBNTElMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwZmZmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJzb2xpZCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMTkwLjg0NDQ0MTE5NTk0OTklN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTYxNjkxNCUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTEzLjk2NTM4NTU1NjIyMTAwOCUyQyUyMnklMjIlM0E0NzMuMzk4NDI2MDU1OTA4MiUyQyUyMnNpemUlMjIlM0ExNyUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDAwMGZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmNyb3NzLWhhdGNoJTIyJTJDJTIycm90YXRpb24lMjIlM0EyNzIuNTk2MTQ1MjI1Njg4OCU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtOTEzNTc3JTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBMzM0Ljg4NDIyNTAxMDg3MTklMkMlMjJ5JTIyJTNBNDI3LjM4ODExMzYxNzg5NzAzJTJDJTIyc2l6ZSUyMiUzQTEyJTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMDAwZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyY2hlY2tlcmJvYXJkJTIyJTJDJTIycm90YXRpb24lMjIlM0EzNDMuMzIyNjE3MTEzNTkwMjQlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTIzNjczNCUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTQ1LjQ3OTU0ODQ1NDI4NDY3JTJDJTIyeSUyMiUzQTQ2OC41MTMxODI5OTc3MDM1NSUyQyUyMnNpemUlMjIlM0ExMTclMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmMDAwMCUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJzdHJpcGVzJTIyJTJDJTIycm90YXRpb24lMjIlM0E1OS40NzE4MjYzODU3MDY2NiU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtOTg3NDgyJTIyJTJDJTIydHlwZSUyMiUzQSUyMmNpcmNsZSUyMiUyQyUyMnglMjIlM0EzMzYuMTk2MTU0MTE3NTg0MjMlMkMlMjJ5JTIyJTNBNDYwLjEyNTc5MzU3NjI0MDU0JTJDJTIyc2l6ZSUyMiUzQTExNiUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDBmZmZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMnN0cmlwZXMlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTcxLjIxNjE4MjQ4NTIyMjgyJTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS0xNzQ2ODIlMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0EzMDIuOTExNTI3NzUyODc2MyUyQyUyMnklMjIlM0ExOTEuNDYyNzk5NTQ5MTAyNzglMkMlMjJzaXplJTIyJTNBMTA5JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZjAwMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyZG90cyUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMzQ3LjAwMjEyMDA1NTI1ODMlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTYyNTUzJTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBMTk5LjYxMTg3MDI4ODg0ODg4JTJDJTIyeSUyMiUzQTMwMi4yOTc5MzkxODEzMjc4JTJDJTIyc2l6ZSUyMiUzQTUyJTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZjAwMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyZG90cyUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBNzAuNjY4NzkyOTk0NjkyOTIlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTE1OTM3MyUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTQwNC4wNzMwOTQ5NjQwMjc0JTJDJTIyeSUyMiUzQTQwOS45ODQxNjA3ODA5MDY3JTJDJTIyc2l6ZSUyMiUzQTY0JTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMGZmMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyc29saWQlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTQyLjgzMjAxNjMwMjI3MjY4JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS00NTIxODYlMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTMyNC42NjY2Mzk4MDQ4NDAxJTJDJTIyeSUyMiUzQTM5LjI2NDI1ODUwMzkxMzg4JTJDJTIyc2l6ZSUyMiUzQTM3JTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMGZmMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyc29saWQlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTI1Ny4yMjMzODY4NzYyODUxJTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS03MTkyODAlMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0EyMDUuODU1Nzk1OTc5NDk5ODIlMkMlMjJ5JTIyJTNBNjUuNzcyODg0ODQ1NzMzNjQlMkMlMjJzaXplJTIyJTNBMTIlMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmZmZmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJjcm9zcy1oYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMTI5LjA4MjIxNDU5MDE2MjA0JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS04MzA1NDklMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTM4NC44OTA2NDA2MTY0MTY5MyUyQyUyMnklMjIlM0EyODAuMjk4NTUxNzk3ODY2OCUyQyUyMnNpemUlMjIlM0ExMTglMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwZmYwMCUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJjcm9zcy1oYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMjAwLjA0MjUzMzAyNzAwODE4JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS04MzE3OTMlMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTIyMS41NjU5NzI2ODU4MTM5JTJDJTIyeSUyMiUzQTI1My42NjQ3ODk1NTc0NTY5NyUyQyUyMnNpemUlMjIlM0E1NiUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDBmZmZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmNyb3NzLWhhdGNoJTIyJTJDJTIycm90YXRpb24lMjIlM0ExNy4wNTUyODE5MTI5MDc5NTglN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTg5NDM4NSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBMzU0LjkzNjEyOTQ1MDc5ODAzJTJDJTIyeSUyMiUzQTgzLjQzNTcwNjczNDY1NzI5JTJDJTIyc2l6ZSUyMiUzQTcyJTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMDAwZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyaGF0Y2glMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTMzOC41NDQ3NjEzMTQ5ODgxNCU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtMzM5NzM2JTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBODMuODA3MDc1NzM4OTA2ODYlMkMlMjJ5JTIyJTNBMzk1LjUyMDY1OTA4OTA4ODQ0JTJDJTIyc2l6ZSUyMiUzQTU3JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZmZmZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyaGF0Y2glMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTE5OC44NDUxNzAyNzk5NjQ4JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS04NDM1MDUlMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTM2MS41MTIxODY2NDY0NjE1JTJDJTIyeSUyMiUzQTY0LjU1MzM5ODEzMjMyNDIyJTJDJTIyc2l6ZSUyMiUzQTg1JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZmZmMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyZG90cyUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMjg1Ljk2NDg0MDczNDM3NzUlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTUzNjYzMyUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTgzLjYxNTE3MDk1NTY1Nzk2JTJDJTIyeSUyMiUzQTk2LjIxMTY4Mzg2OTM2MTg4JTJDJTIyc2l6ZSUyMiUzQTQ5JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZjAwMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyaGF0Y2glMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTI4MS4wMjQwMDI4NTE5MTgzNCU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtOTg3MTkxJTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBMjczLjA5MDMwMTc1MjA5MDQ1JTJDJTIyeSUyMiUzQTQyNC4yMzI1ODQ4MzQwOTg4JTJDJTIyc2l6ZSUyMiUzQTI0JTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMDAwZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyY2hlY2tlcmJvYXJkJTIyJTJDJTIycm90YXRpb24lMjIlM0EyMTguNjE2NTQwMTA2MDEzNDIlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTQ5MjMzMCUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTExOS4wOTkyNDU2Njc0NTc1OCUyQyUyMnklMjIlM0EyNS41NDczODgzMTUyMDA4MDYlMkMlMjJzaXplJTIyJTNBMTA3JTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMGZmMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyc3RyaXBlcyUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMzEwLjkxMzA4NjUyNDIzMzIlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTYyMTIwNSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBMjkyLjAyNzQ5NDkwNzM3OTE1JTJDJTIyeSUyMiUzQTM1NC40MDQzODc3MTI0Nzg2NCUyQyUyMnNpemUlMjIlM0E2OSUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDAwMGZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmNoZWNrZXJib2FyZCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMTI1Ljk3OTI3MTUwMzE2NTM2JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS05MTkxNzIlMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0E0MDguNzE5MjU1OTI0MjI0ODUlMkMlMjJ5JTIyJTNBMjcxLjE4OTUwODc5NTczODIlMkMlMjJzaXplJTIyJTNBODElMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmMDBmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJoYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMTUuOTg2ODMzOTI2MjkwMjc0JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS0zNjM5MjUlMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTMxNS40Mjg3NDI0MDg3NTI0NCUyQyUyMnklMjIlM0EyMzAuODc0ODA1ODA4MDY3MzIlMkMlMjJzaXplJTIyJTNBMTklMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwZmYwMCUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJjcm9zcy1oYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBOC4wODQ2OTIyMDA2NDU4MDQlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTQwODgwOSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBMTAzLjU1OTgwMzcyNDI4ODk0JTJDJTIyeSUyMiUzQTY2LjY1MjQ2MTg4NjQwNTk0JTJDJTIyc2l6ZSUyMiUzQTM5JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZjAwZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyY3Jvc3MtaGF0Y2glMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTkwLjA0Njk5NDgxNjUxMTg3JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS0yMzk1MzQlMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTUwLjc0MDk1MjczMDE3ODgzJTJDJTIyeSUyMiUzQTM2NC42MzQ3MDQyMzIyMTU5JTJDJTIyc2l6ZSUyMiUzQTU4JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZmZmMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyY3Jvc3MtaGF0Y2glMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTM0OS41Mzg0Njc2MTAyNTQ5JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS04NDg3NjQlMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0ExNTAuOTcwOTIxMTU4NzkwNiUyQyUyMnklMjIlM0EzNTMuMDY1MzAxMDYwNjc2NiUyQyUyMnNpemUlMjIlM0E2OSUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmZmZmZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmhhdGNoJTIyJTJDJTIycm90YXRpb24lMjIlM0EyMzEuNjc3MDg0ODM1MjQ2MiU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtODk0MjU5JTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBMjAwLjU5NzU1NjExNDE5Njc4JTJDJTIyeSUyMiUzQTI4OS40NTQyMjIzMjE1MTAzJTJDJTIyc2l6ZSUyMiUzQTk0JTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMGZmZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyZG90cyUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBODYuMDM0OTMyMDcxMzQzMDYlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTczOTc2MyUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBMzA1LjExMzQxOTc3MTE5NDQ2JTJDJTIyeSUyMiUzQTE1MS43ODA3NjYxMjk0OTM3JTJDJTIyc2l6ZSUyMiUzQTU1JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZjAwZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyc29saWQlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTY1LjI5NTIzNzYwMDgwMzM4JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS0xMTkyNTIlMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0EzODkuNTM5MTQ5NTIyNzgxNCUyQyUyMnklMjIlM0E5OC42MjUwMzY4MzU2NzA0NyUyQyUyMnNpemUlMjIlM0E0NiUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDBmZjAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMnN0cmlwZXMlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTEzLjAwNzU0NTQ1MjU2NDk1NSU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtMTE5MTA0JTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBMTA5LjYzNDI0ODEzNzQ3NDA2JTJDJTIyeSUyMiUzQTIzNC40NDIwNDU1Njk0MTk4NiUyQyUyMnNpemUlMjIlM0ExMDYlMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmZmYwMCUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJjaGVja2VyYm9hcmQlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTU3LjEyOTA5ODAyNzk0NDU2NSU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtNTQzMTk2JTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBMTY2Ljg3MDY1NjAxMzQ4ODc3JTJDJTIyeSUyMiUzQTQ0LjI0ODUyNDMwODIwNDY1JTJDJTIyc2l6ZSUyMiUzQTY5JTJDJTIyY29sb3IlMjIlM0ElMjIlMjMwMGZmMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyc29saWQlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTk0LjgyNzc5NTE3NzY5ODE0JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS04Mzc5OCUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTM0MC44MTIxNjM5NDkwMTI3NiUyQyUyMnklMjIlM0E0MDcuOTM1MDE2NzUxMjg5MzclMkMlMjJzaXplJTIyJTNBMzklMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwMDBmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJzb2xpZCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMzA0LjA0ODAyMzI2MTEyOTg2JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS02NTIzMzIlMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0E0NzAuNDUyMDA5Nzk3MDk2MjUlMkMlMjJ5JTIyJTNBNDM3LjQxNzc0MzQ0NDQ0Mjc1JTJDJTIyc2l6ZSUyMiUzQTU2JTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZmZmZmYlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyc29saWQlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTI0My44NDc0MTc4MDM0ODEyMiU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtMzU2NzY1JTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBNTIuOTk4MjI4NDMwNzQ3OTg2JTJDJTIyeSUyMiUzQTM3My45NjMxMDI2OTgzMjYxJTJDJTIyc2l6ZSUyMiUzQTExMCUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmZmZjAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMnNvbGlkJTIyJTJDJTIycm90YXRpb24lMjIlM0EyMjEuMTQwMDQ0MTU0NTk5MyU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtODI1MTA3JTIyJTJDJTIydHlwZSUyMiUzQSUyMmNpcmNsZSUyMiUyQyUyMnglMjIlM0E0NzcuMjQ1MjA4NTAxODE1OCUyQyUyMnklMjIlM0ExODEuNjYyNjA4ODYxOTIzMjIlMkMlMjJzaXplJTIyJTNBNTAlMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmZmZmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJoYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBNTcuNDE1MDc4OTI0OTY4ODQlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTQwOTk0NCUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBMTM3LjQyMTgwNjkzMTQ5NTY3JTJDJTIyeSUyMiUzQTMwOS4zMjE1MzczNzU0NTAxMyUyQyUyMnNpemUlMjIlM0ExMiUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDBmZmZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmhhdGNoJTIyJTJDJTIycm90YXRpb24lMjIlM0EzMTguODUxMzg0NDI3Mzk4NDQlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTk2Mzc3NSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJjaXJjbGUlMjIlMkMlMjJ4JTIyJTNBNDY1Ljc4ODc3MTE1MjQ5NjM0JTJDJTIyeSUyMiUzQTM1OC43ODAzMTE3MDM2ODE5NSUyQyUyMnNpemUlMjIlM0ExMCUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmYwMDAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMnN0cmlwZXMlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTM3LjA3NzY1Mzk0ODIxNzYzJTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS03MDM5OTclMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTQ4MS40MzQ2MzY4MzEyODM1NyUyQyUyMnklMjIlM0EzMDkuNDg3NjMxNjc4NTgxMjQlMkMlMjJzaXplJTIyJTNBNiUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmZmZjAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmhhdGNoJTIyJTJDJTIycm90YXRpb24lMjIlM0E0Ni41NTMwMjgzNTYyODM5JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS04NzQzNTklMjIlMkMlMjJ0eXBlJTIyJTNBJTIycmVjdCUyMiUyQyUyMnglMjIlM0EyNjEuOTA2Njc4OTE1MDIzOCUyQyUyMnklMjIlM0EyMDMuMDk1NjEzOTU2NDUxNDIlMkMlMjJzaXplJTIyJTNBNCUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmZmZjAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmRvdHMlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTE1Mi4xNDQyNzk4NzExMzU5NSU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtMjI5NzYwJTIyJTJDJTIydHlwZSUyMiUzQSUyMmNpcmNsZSUyMiUyQyUyMnglMjIlM0EyMjUuMzk2NzgwNDkwODc1MjQlMkMlMjJ5JTIyJTNBNTAuMTI0NjI0OTY3NTc1MDclMkMlMjJzaXplJTIyJTNBOCUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDBmZjAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmhhdGNoJTIyJTJDJTIycm90YXRpb24lMjIlM0ExNzAuMjc1NTEwNDAwNTMzNjglN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTc4MTgxNSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTQ1LjM1MDkzMjAwMjA2NzU2NiUyQyUyMnklMjIlM0E0ODYuMTIxODMyMzcwNzU4MDYlMkMlMjJzaXplJTIyJTNBNiUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzMDBmZjAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMnNvbGlkJTIyJTJDJTIycm90YXRpb24lMjIlM0EzMDIuMzQxMjY0NTE0MjUyNTQlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTE5NTY2JTIyJTJDJTIydHlwZSUyMiUzQSUyMmNpcmNsZSUyMiUyQyUyMnglMjIlM0E1Mi41NDE0NDQwNjMxODY2NDYlMkMlMjJ5JTIyJTNBMzkwLjExNDcwODkwMDQ1MTY2JTJDJTIyc2l6ZSUyMiUzQTYlMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmZmZmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJjcm9zcy1oYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMjcxLjg0OTc4ODIxMzE0ODclN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTExNjU4NSUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTQ2OS4zMTg5NTY5NzExNjg1JTJDJTIyeSUyMiUzQTQ3MS4yMTQ1MDcxMDI5NjYzJTJDJTIyc2l6ZSUyMiUzQTEyJTJDJTIyY29sb3IlMjIlM0ElMjIlMjNmZjAwMDAlMjIlMkMlMjJwYXR0ZXJuJTIyJTNBJTIyaGF0Y2glMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTE0Ni41MjIyNjQ2NjY4NTUzNCU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtNjcwMzM4JTIyJTJDJTIydHlwZSUyMiUzQSUyMmNpcmNsZSUyMiUyQyUyMnglMjIlM0E0MC40MjE3NDY4NTAwMTM3MyUyQyUyMnklMjIlM0EzODkuNjA3NTE0NzM5MDM2NTYlMkMlMjJzaXplJTIyJTNBOSUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmYwMDAwJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmNyb3NzLWhhdGNoJTIyJTJDJTIycm90YXRpb24lMjIlM0ExMDYuNDgxNzAyMDc2MjcxMTglN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTkwMzUxMyUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTE0MS45NDM5Njk2MDczNTMyJTJDJTIyeSUyMiUzQTQwOC43ODY0NDUxNDA4Mzg2JTJDJTIyc2l6ZSUyMiUzQTYlMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmMDBmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJzdHJpcGVzJTIyJTJDJTIycm90YXRpb24lMjIlM0EyMDEuMDM0ODY5NzI4NjA5OTIlN0QlMkMlN0IlMjJpZCUyMiUzQSUyMnNoYXBlLTg5Mzk0NiUyMiUyQyUyMnR5cGUlMjIlM0ElMjJyZWN0JTIyJTJDJTIyeCUyMiUzQTIzMi44MTUyOTc0ODQzOTc5JTJDJTIyeSUyMiUzQTMxMy40ODA0ODQ2MDQ4MzU1JTJDJTIyc2l6ZSUyMiUzQTglMkMlMjJjb2xvciUyMiUzQSUyMiUyM2ZmZmZmZiUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJjcm9zcy1oYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMTU4LjE4Mzk1OTk0NjAzNjM0JTdEJTJDJTdCJTIyaWQlMjIlM0ElMjJzaGFwZS0yNTI4NzUlMjIlMkMlMjJ0eXBlJTIyJTNBJTIyY2lyY2xlJTIyJTJDJTIyeCUyMiUzQTQzLjM0ODkwMjIyNTQ5NDM4NSUyQyUyMnklMjIlM0EzMDAuOTY0NjQzMzU5MTg0MjclMkMlMjJzaXplJTIyJTNBNSUyQyUyMmNvbG9yJTIyJTNBJTIyJTIzZmZmZmZmJTIyJTJDJTIycGF0dGVybiUyMiUzQSUyMmRvdHMlMjIlMkMlMjJyb3RhdGlvbiUyMiUzQTMzMC4xNDc3NDc0MTYwNDkyNCU3RCUyQyU3QiUyMmlkJTIyJTNBJTIyc2hhcGUtNjQ1NzMwJTIyJTJDJTIydHlwZSUyMiUzQSUyMnJlY3QlMjIlMkMlMjJ4JTIyJTNBODUuNjUzMzI2NzQ5ODAxNjQlMkMlMjJ5JTIyJTNBMjY0Ljk3Mzc4MTEwODg1NjIlMkMlMjJzaXplJTIyJTNBMTIlMkMlMjJjb2xvciUyMiUzQSUyMiUyMzAwZmYwMCUyMiUyQyUyMnBhdHRlcm4lMjIlM0ElMjJoYXRjaCUyMiUyQyUyMnJvdGF0aW9uJTIyJTNBMzQ1LjExOTg0MjA3NjY3NDElN0QlNUQlN0Q=</metadata>
+  <defs>
+    
+<pattern id="pattern-1" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#0000ff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-2" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#00ff00"></rect>
+</pattern>
+<pattern id="pattern-3" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#ff0000"></rect>
+</pattern>
+<pattern id="pattern-5" width="8" height="8" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="4" height="4" fill="#ff0000"></rect>
+  <rect x="4" y="4" width="4" height="4" fill="#ff0000"></rect>
+</pattern>
+<pattern id="pattern-6" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-7" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ff00ff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-8" width="4" height="4" patternUnits="userSpaceOnUse">
+  <circle cx="2" cy="2" r="0.8" fill="#ffffff"></circle>
+</pattern>
+<pattern id="pattern-10" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#0000ff" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#0000ff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-11" width="8" height="8" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="4" height="4" fill="#0000ff"></rect>
+  <rect x="4" y="4" width="4" height="4" fill="#0000ff"></rect>
+</pattern>
+<pattern id="pattern-12" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#ff0000"></rect>
+</pattern>
+<pattern id="pattern-13" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#00ffff"></rect>
+</pattern>
+<pattern id="pattern-14" width="4" height="4" patternUnits="userSpaceOnUse">
+  <circle cx="2" cy="2" r="0.8" fill="#ff0000"></circle>
+</pattern>
+<pattern id="pattern-15" width="4" height="4" patternUnits="userSpaceOnUse">
+  <circle cx="2" cy="2" r="0.8" fill="#ff0000"></circle>
+</pattern>
+<pattern id="pattern-18" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-19" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#00ff00" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#00ff00" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-20" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#00ffff" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#00ffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-21" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#0000ff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-22" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-23" width="4" height="4" patternUnits="userSpaceOnUse">
+  <circle cx="2" cy="2" r="0.8" fill="#ffff00"></circle>
+</pattern>
+<pattern id="pattern-24" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ff0000" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-25" width="8" height="8" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="4" height="4" fill="#0000ff"></rect>
+  <rect x="4" y="4" width="4" height="4" fill="#0000ff"></rect>
+</pattern>
+<pattern id="pattern-26" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#00ff00"></rect>
+</pattern>
+<pattern id="pattern-27" width="8" height="8" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="4" height="4" fill="#0000ff"></rect>
+  <rect x="4" y="4" width="4" height="4" fill="#0000ff"></rect>
+</pattern>
+<pattern id="pattern-28" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ff00ff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-29" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#00ff00" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#00ff00" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-30" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#ff00ff" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#ff00ff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-31" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#ffff00" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#ffff00" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-32" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-33" width="4" height="4" patternUnits="userSpaceOnUse">
+  <circle cx="2" cy="2" r="0.8" fill="#00ffff"></circle>
+</pattern>
+<pattern id="pattern-35" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#00ff00"></rect>
+</pattern>
+<pattern id="pattern-36" width="8" height="8" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="4" height="4" fill="#ffff00"></rect>
+  <rect x="4" y="4" width="4" height="4" fill="#ffff00"></rect>
+</pattern>
+<pattern id="pattern-41" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-42" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#00ffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-43" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#ff0000"></rect>
+</pattern>
+<pattern id="pattern-44" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ffff00" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-45" width="4" height="4" patternUnits="userSpaceOnUse">
+  <circle cx="2" cy="2" r="0.8" fill="#ffff00"></circle>
+</pattern>
+<pattern id="pattern-46" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#00ff00" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-48" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-49" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#ff0000" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-50" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#ff0000" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#ff0000" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-51" width="4" height="4" patternUnits="userSpaceOnUse">
+  <rect x="0" y="0" width="2" height="4" fill="#ff00ff"></rect>
+</pattern>
+<pattern id="pattern-52" width="4" height="4" patternUnits="userSpaceOnUse">
+  <line x1="0" y1="0" x2="4" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+  <line x1="4" y1="0" x2="0" y2="4" stroke="#ffffff" stroke-width="0.5"></line>
+</pattern>
+<pattern id="pattern-53" width="4" height="4" patternUnits="userSpaceOnUse">
+  <circle cx="2" cy="2" r="0.8" fill="#ffffff"></circle>
+</pattern>
+<pattern id="pattern-54" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+  <line x1="0" y1="0" x2="0" y2="4" stroke="#00ff00" stroke-width="0.5"></line>
+</pattern>
+  </defs>
+  <style>
+    .art-shape { cursor: grab; }
+    .art-shape.is-selected { filter: brightness(1.5); }
+  </style>
+  <rect class="bg" x="0" y="0" width="512" height="512" fill="#000000"></rect>
+  
+<g class="art-shape" data-id="shape-601676" data-plan-x="202.02148485183716" data-plan-y="314.57465040683746" transform="translate(202.02148485183716, 314.57465040683746) rotate(123.22295866906643)">
+  <circle cx="0" cy="0" r="36" fill="#ff0000" stroke="#000000" stroke-width="2"></circle>
+</g>
+<g class="art-shape" data-id="shape-956595" data-plan-x="157.19205355644226" data-plan-y="439.88372910022736" transform="translate(157.19205355644226, 439.88372910022736) rotate(128.93303582444787)">
+  <rect x="-11" y="-11" width="22" height="22" fill="url(#pattern-1)" stroke="#0000ff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-269223" data-plan-x="47.73793935775757" data-plan-y="483.41081416606903" transform="translate(47.73793935775757, 483.41081416606903) rotate(287.5752508454025)">
+  <rect x="-16.5" y="-16.5" width="33" height="33" fill="url(#pattern-2)" stroke="#00ff00" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-796221" data-plan-x="397.05120956897736" data-plan-y="511.39895367622375" transform="translate(397.05120956897736, 511.39895367622375) rotate(73.95520747639239)">
+  <circle cx="0" cy="0" r="52" fill="url(#pattern-3)" stroke="#ff0000" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-15091" data-plan-x="359.43797421455383" data-plan-y="502.8419015407562" transform="translate(359.43797421455383, 502.8419015407562) rotate(321.2836108915508)">
+  <rect x="-59.5" y="-59.5" width="119" height="119" fill="#0000ff" stroke="#000000" stroke-width="2"></rect>
+</g>
+<g class="art-shape" data-id="shape-769507" data-plan-x="404.49822092056274" data-plan-y="199.27157402038574" transform="translate(404.49822092056274, 199.27157402038574) rotate(6.214339574798942)">
+  <circle cx="0" cy="0" r="36.5" fill="url(#pattern-5)" stroke="#ff0000" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-292323" data-plan-x="377.2571839094162" data-plan-y="304.556018948555" transform="translate(377.2571839094162, 304.556018948555) rotate(67.27111863903701)">
+  <rect x="-41" y="-41" width="82" height="82" fill="url(#pattern-6)" stroke="#ffffff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-747778" data-plan-x="426.3677980899811" data-plan-y="388.5524126291275" transform="translate(426.3677980899811, 388.5524126291275) rotate(66.26360264606774)">
+  <circle cx="0" cy="0" r="26" fill="url(#pattern-7)" stroke="#ff00ff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-183286" data-plan-x="389.17731070518494" data-plan-y="284.9567551612854" transform="translate(389.17731070518494, 284.9567551612854) rotate(194.50069759972394)">
+  <rect x="-19" y="-19" width="38" height="38" fill="url(#pattern-8)" stroke="#ffffff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-102931" data-plan-x="378.1400719881058" data-plan-y="298.22056090831757" transform="translate(378.1400719881058, 298.22056090831757) rotate(190.8444411959499)">
+  <circle cx="0" cy="0" r="25.5" fill="#00ffff" stroke="#000000" stroke-width="2"></circle>
+</g>
+<g class="art-shape" data-id="shape-616914" data-plan-x="13.965385556221008" data-plan-y="473.3984260559082" transform="translate(13.965385556221008, 473.3984260559082) rotate(272.5961452256888)">
+  <rect x="-8.5" y="-8.5" width="17" height="17" fill="url(#pattern-10)" stroke="#0000ff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-913577" data-plan-x="334.8842250108719" data-plan-y="427.38811361789703" transform="translate(334.8842250108719, 427.38811361789703) rotate(343.32261711359024)">
+  <rect x="-6" y="-6" width="12" height="12" fill="url(#pattern-11)" stroke="#0000ff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-236734" data-plan-x="45.47954845428467" data-plan-y="468.51318299770355" transform="translate(45.47954845428467, 468.51318299770355) rotate(59.47182638570666)">
+  <rect x="-58.5" y="-58.5" width="117" height="117" fill="url(#pattern-12)" stroke="#ff0000" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-987482" data-plan-x="336.19615411758423" data-plan-y="460.12579357624054" transform="translate(336.19615411758423, 460.12579357624054) rotate(71.21618248522282)">
+  <circle cx="0" cy="0" r="58" fill="url(#pattern-13)" stroke="#00ffff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-174682" data-plan-x="302.9115277528763" data-plan-y="191.46279954910278" transform="translate(302.9115277528763, 191.46279954910278) rotate(347.0021200552583)">
+  <rect x="-54.5" y="-54.5" width="109" height="109" fill="url(#pattern-14)" stroke="#ff0000" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-62553" data-plan-x="199.61187028884888" data-plan-y="302.2979391813278" transform="translate(199.61187028884888, 302.2979391813278) rotate(70.66879299469292)">
+  <rect x="-26" y="-26" width="52" height="52" fill="url(#pattern-15)" stroke="#ff0000" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-159373" data-plan-x="404.0730949640274" data-plan-y="409.9841607809067" transform="translate(404.0730949640274, 409.9841607809067) rotate(42.83201630227268)">
+  <rect x="-32" y="-32" width="64" height="64" fill="#00ff00" stroke="#000000" stroke-width="2"></rect>
+</g>
+<g class="art-shape" data-id="shape-452186" data-plan-x="324.6666398048401" data-plan-y="39.26425850391388" transform="translate(324.6666398048401, 39.26425850391388) rotate(257.2233868762851)">
+  <circle cx="0" cy="0" r="18.5" fill="#00ff00" stroke="#000000" stroke-width="2"></circle>
+</g>
+<g class="art-shape" data-id="shape-719280" data-plan-x="205.85579597949982" data-plan-y="65.77288484573364" transform="translate(205.85579597949982, 65.77288484573364) rotate(129.08221459016204)">
+  <rect x="-6" y="-6" width="12" height="12" fill="url(#pattern-18)" stroke="#ffffff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-830549" data-plan-x="384.89064061641693" data-plan-y="280.2985517978668" transform="translate(384.89064061641693, 280.2985517978668) rotate(200.04253302700818)">
+  <circle cx="0" cy="0" r="59" fill="url(#pattern-19)" stroke="#00ff00" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-831793" data-plan-x="221.5659726858139" data-plan-y="253.66478955745697" transform="translate(221.5659726858139, 253.66478955745697) rotate(17.055281912907958)">
+  <circle cx="0" cy="0" r="28" fill="url(#pattern-20)" stroke="#00ffff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-894385" data-plan-x="354.93612945079803" data-plan-y="83.43570673465729" transform="translate(354.93612945079803, 83.43570673465729) rotate(338.54476131498814)">
+  <circle cx="0" cy="0" r="36" fill="url(#pattern-21)" stroke="#0000ff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-339736" data-plan-x="83.80707573890686" data-plan-y="395.52065908908844" transform="translate(83.80707573890686, 395.52065908908844) rotate(198.8451702799648)">
+  <rect x="-28.5" y="-28.5" width="57" height="57" fill="url(#pattern-22)" stroke="#ffffff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-843505" data-plan-x="361.5121866464615" data-plan-y="64.55339813232422" transform="translate(361.5121866464615, 64.55339813232422) rotate(285.9648407343775)">
+  <circle cx="0" cy="0" r="42.5" fill="url(#pattern-23)" stroke="#ffff00" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-536633" data-plan-x="83.61517095565796" data-plan-y="96.21168386936188" transform="translate(83.61517095565796, 96.21168386936188) rotate(281.02400285191834)">
+  <rect x="-24.5" y="-24.5" width="49" height="49" fill="url(#pattern-24)" stroke="#ff0000" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-987191" data-plan-x="273.09030175209045" data-plan-y="424.2325848340988" transform="translate(273.09030175209045, 424.2325848340988) rotate(218.61654010601342)">
+  <rect x="-12" y="-12" width="24" height="24" fill="url(#pattern-25)" stroke="#0000ff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-492330" data-plan-x="119.09924566745758" data-plan-y="25.547388315200806" transform="translate(119.09924566745758, 25.547388315200806) rotate(310.9130865242332)">
+  <rect x="-53.5" y="-53.5" width="107" height="107" fill="url(#pattern-26)" stroke="#00ff00" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-621205" data-plan-x="292.02749490737915" data-plan-y="354.40438771247864" transform="translate(292.02749490737915, 354.40438771247864) rotate(125.97927150316536)">
+  <circle cx="0" cy="0" r="34.5" fill="url(#pattern-27)" stroke="#0000ff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-919172" data-plan-x="408.71925592422485" data-plan-y="271.1895087957382" transform="translate(408.71925592422485, 271.1895087957382) rotate(15.986833926290274)">
+  <rect x="-40.5" y="-40.5" width="81" height="81" fill="url(#pattern-28)" stroke="#ff00ff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-363925" data-plan-x="315.42874240875244" data-plan-y="230.87480580806732" transform="translate(315.42874240875244, 230.87480580806732) rotate(8.084692200645804)">
+  <circle cx="0" cy="0" r="9.5" fill="url(#pattern-29)" stroke="#00ff00" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-408809" data-plan-x="103.55980372428894" data-plan-y="66.65246188640594" transform="translate(103.55980372428894, 66.65246188640594) rotate(90.04699481651187)">
+  <circle cx="0" cy="0" r="19.5" fill="url(#pattern-30)" stroke="#ff00ff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-239534" data-plan-x="50.74095273017883" data-plan-y="364.6347042322159" transform="translate(50.74095273017883, 364.6347042322159) rotate(349.5384676102549)">
+  <circle cx="0" cy="0" r="29" fill="url(#pattern-31)" stroke="#ffff00" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-848764" data-plan-x="150.9709211587906" data-plan-y="353.0653010606766" transform="translate(150.9709211587906, 353.0653010606766) rotate(231.6770848352462)">
+  <rect x="-34.5" y="-34.5" width="69" height="69" fill="url(#pattern-32)" stroke="#ffffff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-894259" data-plan-x="200.59755611419678" data-plan-y="289.4542223215103" transform="translate(200.59755611419678, 289.4542223215103) rotate(86.03493207134306)">
+  <rect x="-47" y="-47" width="94" height="94" fill="url(#pattern-33)" stroke="#00ffff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-739763" data-plan-x="305.11341977119446" data-plan-y="151.7807661294937" transform="translate(305.11341977119446, 151.7807661294937) rotate(65.29523760080338)">
+  <circle cx="0" cy="0" r="27.5" fill="#ff00ff" stroke="#000000" stroke-width="2"></circle>
+</g>
+<g class="art-shape" data-id="shape-119252" data-plan-x="389.5391495227814" data-plan-y="98.62503683567047" transform="translate(389.5391495227814, 98.62503683567047) rotate(13.007545452564955)">
+  <rect x="-23" y="-23" width="46" height="46" fill="url(#pattern-35)" stroke="#00ff00" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-119104" data-plan-x="109.63424813747406" data-plan-y="234.44204556941986" transform="translate(109.63424813747406, 234.44204556941986) rotate(57.129098027944565)">
+  <rect x="-53" y="-53" width="106" height="106" fill="url(#pattern-36)" stroke="#ffff00" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-543196" data-plan-x="166.87065601348877" data-plan-y="44.24852430820465" transform="translate(166.87065601348877, 44.24852430820465) rotate(94.82779517769814)">
+  <rect x="-34.5" y="-34.5" width="69" height="69" fill="#00ff00" stroke="#000000" stroke-width="2"></rect>
+</g>
+<g class="art-shape" data-id="shape-83798" data-plan-x="340.81216394901276" data-plan-y="407.93501675128937" transform="translate(340.81216394901276, 407.93501675128937) rotate(304.04802326112986)">
+  <rect x="-19.5" y="-19.5" width="39" height="39" fill="#0000ff" stroke="#000000" stroke-width="2"></rect>
+</g>
+<g class="art-shape" data-id="shape-652332" data-plan-x="470.45200979709625" data-plan-y="437.41774344444275" transform="translate(470.45200979709625, 437.41774344444275) rotate(243.84741780348122)">
+  <rect x="-28" y="-28" width="56" height="56" fill="#ffffff" stroke="#000000" stroke-width="2"></rect>
+</g>
+<g class="art-shape" data-id="shape-356765" data-plan-x="52.998228430747986" data-plan-y="373.9631026983261" transform="translate(52.998228430747986, 373.9631026983261) rotate(221.1400441545993)">
+  <rect x="-55" y="-55" width="110" height="110" fill="#ffff00" stroke="#000000" stroke-width="2"></rect>
+</g>
+<g class="art-shape" data-id="shape-825107" data-plan-x="477.2452085018158" data-plan-y="181.66260886192322" transform="translate(477.2452085018158, 181.66260886192322) rotate(57.41507892496884)">
+  <circle cx="0" cy="0" r="25" fill="url(#pattern-41)" stroke="#ffffff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-409944" data-plan-x="137.42180693149567" data-plan-y="309.32153737545013" transform="translate(137.42180693149567, 309.32153737545013) rotate(318.85138442739844)">
+  <circle cx="0" cy="0" r="6" fill="url(#pattern-42)" stroke="#00ffff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-963775" data-plan-x="465.78877115249634" data-plan-y="358.78031170368195" transform="translate(465.78877115249634, 358.78031170368195) rotate(37.07765394821763)">
+  <circle cx="0" cy="0" r="5" fill="url(#pattern-43)" stroke="#ff0000" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-703997" data-plan-x="481.43463683128357" data-plan-y="309.48763167858124" transform="translate(481.43463683128357, 309.48763167858124) rotate(46.5530283562839)">
+  <circle cx="0" cy="0" r="3" fill="url(#pattern-44)" stroke="#ffff00" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-874359" data-plan-x="261.9066789150238" data-plan-y="203.09561395645142" transform="translate(261.9066789150238, 203.09561395645142) rotate(152.14427987113595)">
+  <rect x="-2" y="-2" width="4" height="4" fill="url(#pattern-45)" stroke="#ffff00" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-229760" data-plan-x="225.39678049087524" data-plan-y="50.12462496757507" transform="translate(225.39678049087524, 50.12462496757507) rotate(170.27551040053368)">
+  <circle cx="0" cy="0" r="4" fill="url(#pattern-46)" stroke="#00ff00" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-781815" data-plan-x="45.350932002067566" data-plan-y="486.12183237075806" transform="translate(45.350932002067566, 486.12183237075806) rotate(302.34126451425254)">
+  <rect x="-3" y="-3" width="6" height="6" fill="#00ff00" stroke="#000000" stroke-width="2"></rect>
+</g>
+<g class="art-shape" data-id="shape-19566" data-plan-x="52.541444063186646" data-plan-y="390.11470890045166" transform="translate(52.541444063186646, 390.11470890045166) rotate(271.8497882131487)">
+  <circle cx="0" cy="0" r="3" fill="url(#pattern-48)" stroke="#ffffff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-116585" data-plan-x="469.3189569711685" data-plan-y="471.2145071029663" transform="translate(469.3189569711685, 471.2145071029663) rotate(146.52226466685534)">
+  <rect x="-6" y="-6" width="12" height="12" fill="url(#pattern-49)" stroke="#ff0000" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-670338" data-plan-x="40.42174685001373" data-plan-y="389.60751473903656" transform="translate(40.42174685001373, 389.60751473903656) rotate(106.48170207627118)">
+  <circle cx="0" cy="0" r="4.5" fill="url(#pattern-50)" stroke="#ff0000" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-903513" data-plan-x="141.9439696073532" data-plan-y="408.7864451408386" transform="translate(141.9439696073532, 408.7864451408386) rotate(201.03486972860992)">
+  <rect x="-3" y="-3" width="6" height="6" fill="url(#pattern-51)" stroke="#ff00ff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-893946" data-plan-x="232.8152974843979" data-plan-y="313.4804846048355" transform="translate(232.8152974843979, 313.4804846048355) rotate(158.18395994603634)">
+  <rect x="-4" y="-4" width="8" height="8" fill="url(#pattern-52)" stroke="#ffffff" stroke-width="1"></rect>
+</g>
+<g class="art-shape" data-id="shape-252875" data-plan-x="43.348902225494385" data-plan-y="300.96464335918427" transform="translate(43.348902225494385, 300.96464335918427) rotate(330.14774741604924)">
+  <circle cx="0" cy="0" r="2.5" fill="url(#pattern-53)" stroke="#ffffff" stroke-width="1"></circle>
+</g>
+<g class="art-shape" data-id="shape-645730" data-plan-x="85.65332674980164" data-plan-y="264.9737811088562" transform="translate(85.65332674980164, 264.9737811088562) rotate(345.1198420766741)">
+  <rect x="-6" y="-6" width="12" height="12" fill="url(#pattern-54)" stroke="#00ff00" stroke-width="1"></rect>
+</g>
+</svg>

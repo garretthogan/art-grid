@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖌️</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Art Grid Generator</title>
+  </head>
+  <body class="tui">
+    <div id="app">
+      <div id="controls-area" class="collapsed">
+        <div class="controls-area-header-row">
+          <button type="button" class="controls-area-header" id="controls-area-toggle" aria-expanded="false" aria-controls="controls-area-content" title="Toggle controls panel" aria-label="Toggle controls panel">
+            Controls
+          </button>
+        </div>
+        <div id="controls-area-content" class="controls-area-content">
+          <div class="controls-panels">
+            <div id="floor-plan-controls-root" class="floor-plan-controls-root"></div>
+          </div>
+          <div id="camera-controls">
+            <div id="floor-plan-entities-panel" class="panel collapsible">
+              <button class="panel-header" data-panel="floor-plan-entities">
+                <span class="panel-chevron">▼</span>
+                Shapes
+              </button>
+              <div class="panel-content" id="panel-floor-plan-entities">
+                <div id="floor-plan-entities-root" class="floor-plan-entities-root"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="floor-plan-tool-root" class="floor-plan-tool-root"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
