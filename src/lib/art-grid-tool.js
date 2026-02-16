@@ -153,8 +153,23 @@ export function mountArtGridTool(containerElement) {
 
   const controls = document.createElement('div')
   controls.className = 'floor-plan-controls'
-  const title = document.createElement('h2')
-  title.textContent = 'Art Grid SVG Generator'
+  
+  // Create collapsible panel for settings
+  const settingsPanel = document.createElement('div')
+  settingsPanel.className = 'panel'
+  settingsPanel.id = 'settings-panel'
+  
+  const settingsHeader = document.createElement('button')
+  settingsHeader.className = 'panel-header'
+  settingsHeader.type = 'button'
+  settingsHeader.innerHTML = '<span class="panel-chevron">▼</span>Settings'
+  settingsHeader.addEventListener('click', () => {
+    settingsPanel.classList.toggle('collapsed')
+  })
+  
+  const settingsContent = document.createElement('div')
+  settingsContent.className = 'panel-content'
+  
   const seed = createNumberField('Seed', 'ag-seed', saved?.seed ?? randomSeed(), 1, MAX_SEED)
   const width = createNumberField('Canvas Width (px)', 'ag-width', saved?.width ?? 1200, 100, 4000)
   const height = createNumberField('Canvas Height (px)', 'ag-height', saved?.height ?? 2400, 100, 4000)
@@ -162,21 +177,33 @@ export function mountArtGridTool(containerElement) {
   const minSize = createRangeField('Min shape size', 'ag-min-size', saved?.minSize ?? 8, 2, 100)
   const maxSize = createRangeField('Max shape size', 'ag-max-size', saved?.maxSize ?? 120, 10, 300)
 
+  settingsContent.append(
+    seed.row,
+    width.row,
+    height.row,
+    shapeCount.row,
+    minSize.row,
+    maxSize.row
+  )
+  
+  settingsPanel.append(settingsHeader, settingsContent)
+
   const actions = document.createElement('div')
   actions.className = 'floor-plan-actions'
+  actions.style.position = 'sticky'
+  actions.style.top = '0'
+  actions.style.backgroundColor = 'var(--tui-bg)'
+  actions.style.zIndex = '5'
+  actions.style.paddingBottom = 'var(--tui-gap)'
   const randomizeBtn = document.createElement('button')
   randomizeBtn.type = 'button'
   randomizeBtn.id = 'ag-randomize-seed'
   randomizeBtn.textContent = 'Randomize Seed'
-  const generateBtn = document.createElement('button')
-  generateBtn.type = 'button'
-  generateBtn.className = 'primary'
-  generateBtn.textContent = 'Generate'
   const saveBtn = document.createElement('button')
   saveBtn.type = 'button'
   saveBtn.id = 'ag-save-svg'
   saveBtn.textContent = 'Save SVG'
-  actions.append(randomizeBtn, generateBtn, saveBtn)
+  actions.append(randomizeBtn, saveBtn)
 
   const status = document.createElement('p')
   status.className = 'floor-plan-status'
@@ -185,14 +212,8 @@ export function mountArtGridTool(containerElement) {
   stats.className = 'floor-plan-stats'
   stats.textContent = saved?.statsText ?? ''
   controls.append(
-    title,
-    seed.row,
-    width.row,
-    height.row,
-    shapeCount.row,
-    minSize.row,
-    maxSize.row,
     actions,
+    settingsPanel,
     status,
     stats
   )
@@ -230,7 +251,6 @@ export function mountArtGridTool(containerElement) {
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
   function setGeneratingState(generating) {
-    generateBtn.disabled = generating
     randomizeBtn.disabled = generating
     saveBtn.disabled = generating
     deleteEntityBtn.disabled = generating
@@ -749,7 +769,6 @@ export function mountArtGridTool(containerElement) {
       generate()
     }
   })
-  generateBtn.addEventListener('click', generate)
   saveBtn.addEventListener('click', () => {
     if (!latestSvg) {
       status.textContent = 'Generate an art grid before saving.'
