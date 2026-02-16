@@ -145,13 +145,13 @@ function renderShape(shape, index) {
   
   if (shape.type === 'circle') {
     return `
-<g data-id="${shape.id}" transform="${transform}">
+<g class="art-shape" data-id="${shape.id}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
   <circle cx="0" cy="0" r="${shape.size / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke" />
 </g>`;
   } else {
     const halfSize = shape.size / 2;
     return `
-<g data-id="${shape.id}" transform="${transform}">
+<g class="art-shape" data-id="${shape.id}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
   <rect x="${-halfSize}" y="${-halfSize}" width="${shape.size}" height="${shape.size}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke" />
 </g>`;
   }
@@ -194,6 +194,10 @@ export function renderArtGridSvg(grid, options = {}) {
       <rect x="0" y="0" width="${width}" height="${height}" />
     </clipPath>
   </defs>
+  <style>
+    .art-shape { cursor: grab; }
+    .art-shape.is-selected { filter: brightness(1.5); }
+  </style>
   <rect x="0" y="0" width="${width}" height="${height}" fill="#000000" />
   <g clip-path="url(#canvas-clip)">
     ${shapes}

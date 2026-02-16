@@ -325,8 +325,13 @@ export function mountArtGridTool(containerElement) {
         height: nextHeight,
       }
       svg.setAttribute('viewBox', `${nextViewBox.minX} ${nextViewBox.minY} ${nextViewBox.width} ${nextViewBox.height}`)
+      const currentViewBoxRaw = svg.getAttribute('viewBox')
       persistMetadata(svg, metadata)
       previewContent.innerHTML = latestSvg
+      const refreshedSvg = previewContent.querySelector('svg')
+      if (refreshedSvg && currentViewBoxRaw) {
+        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+      }
       bindSvgInteractions()
     }
 
@@ -400,9 +405,14 @@ export function mountArtGridTool(containerElement) {
       if (!dragState) return
       dragState.element.releasePointerCapture(event.pointerId)
       svg.classList.remove('is-panning')
+      const currentViewBoxRaw = svg.getAttribute('viewBox')
       dragState = null
       persistMetadata(svg, metadata)
       previewContent.innerHTML = latestSvg
+      const refreshedSvg = previewContent.querySelector('svg')
+      if (refreshedSvg && currentViewBoxRaw) {
+        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+      }
       bindSvgInteractions()
     }
     svg.onpointerup = endDrag
@@ -512,13 +522,15 @@ export function mountArtGridTool(containerElement) {
   if (savedSvg) {
     latestSvg = savedSvg
     previewContent.innerHTML = latestSvg
-    // Reset viewBox to default on load to avoid loading with a zoomed/panned view
     const loadedSvg = previewContent.querySelector('svg')
     if (loadedSvg) {
-      const baseViewBox = readBaseViewBox(loadedSvg)
-      if (baseViewBox) {
-        loadedSvg.setAttribute('viewBox', `${baseViewBox.minX} ${baseViewBox.minY} ${baseViewBox.width} ${baseViewBox.height}`)
-        latestSvg = loadedSvg.outerHTML
+      // Check if SVG has the art-shape classes needed for interaction
+      const hasShapeClasses = loadedSvg.querySelector('.art-shape') !== null
+      if (!hasShapeClasses) {
+        // Old SVG format - regenerate with current settings
+        status.textContent = 'Upgrading SVG format...'
+        generate()
+        return
       }
     }
     status.textContent = 'Loaded previous art grid.'
