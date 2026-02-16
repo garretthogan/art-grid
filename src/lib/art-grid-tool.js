@@ -139,7 +139,8 @@ export function mountArtGridTool(containerElement) {
 
   const saved = loadSettings()
   let latestSvg = ''
-  let selectedShapeId = null
+  let selectedShapeIds = new Set()
+  let selectedLayer = null
   let dragState = null
   let isGenerating = false
 
@@ -155,11 +156,11 @@ export function mountArtGridTool(containerElement) {
   const title = document.createElement('h2')
   title.textContent = 'Art Grid SVG Generator'
   const seed = createNumberField('Seed', 'ag-seed', saved?.seed ?? randomSeed(), 1, MAX_SEED)
-  const width = createNumberField('Width (px)', 'ag-width', saved?.width ?? 420, 100, 2000)
-  const height = createNumberField('Height (px)', 'ag-height', saved?.height ?? 920, 100, 2000)
-  const shapeCount = createRangeField('Shape count', 'ag-shapes', saved?.shapeCount ?? 80, 20, 200)
-  const minSize = createRangeField('Min size', 'ag-min-size', saved?.minSize ?? 8, 2, 100)
-  const maxSize = createRangeField('Max size', 'ag-max-size', saved?.maxSize ?? 120, 10, 300)
+  const width = createNumberField('Canvas Width (px)', 'ag-width', saved?.width ?? 1200, 100, 4000)
+  const height = createNumberField('Canvas Height (px)', 'ag-height', saved?.height ?? 2400, 100, 4000)
+  const shapeCount = createRangeField('Shape density', 'ag-shapes', saved?.shapeCount ?? 80, 20, 300)
+  const minSize = createRangeField('Min shape size', 'ag-min-size', saved?.minSize ?? 8, 2, 100)
+  const maxSize = createRangeField('Max shape size', 'ag-max-size', saved?.maxSize ?? 120, 10, 300)
 
   const actions = document.createElement('div')
   actions.className = 'floor-plan-actions'
@@ -199,6 +200,22 @@ export function mountArtGridTool(containerElement) {
 
   const entitiesWrap = document.createElement('div')
   entitiesWrap.className = 'floor-plan-entities'
+  
+  // Layer list
+  const layersTitle = document.createElement('h3')
+  layersTitle.textContent = 'Layers'
+  layersTitle.style.margin = '0 0 8px'
+  layersTitle.style.fontSize = '0.9rem'
+  const layersList = document.createElement('ul')
+  layersList.className = 'floor-plan-entity-list'
+  layersList.style.marginBottom = '16px'
+  
+  // Shapes list title
+  const shapesTitle = document.createElement('h3')
+  shapesTitle.textContent = 'Shapes'
+  shapesTitle.style.margin = '0 0 8px'
+  shapesTitle.style.fontSize = '0.9rem'
+  
   const entityActions = document.createElement('div')
   entityActions.className = 'floor-plan-actions'
   const deleteEntityBtn = document.createElement('button')
@@ -207,7 +224,7 @@ export function mountArtGridTool(containerElement) {
   entityActions.append(deleteEntityBtn)
   const entitiesList = document.createElement('ul')
   entitiesList.className = 'floor-plan-entity-list'
-  entitiesWrap.append(entityActions, entitiesList)
+  entitiesWrap.append(layersTitle, layersList, shapesTitle, entityActions, entitiesList)
   entitiesContainer.appendChild(entitiesWrap)
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
@@ -224,9 +241,9 @@ export function mountArtGridTool(containerElement) {
       SETTINGS_KEY,
       JSON.stringify({
         seed: readPositiveInt(seed.input, Date.now()),
-        width: readPositiveInt(width.input, 420),
-        height: readPositiveInt(height.input, 920),
-        shapeCount: readBoundedInt(shapeCount.input, 80, 20, 200),
+        width: readPositiveInt(width.input, 1200),
+        height: readPositiveInt(height.input, 2400),
+        shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
         minSize: readBoundedInt(minSize.input, 8, 2, 100),
         maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
         statsText,
@@ -241,18 +258,69 @@ export function mountArtGridTool(containerElement) {
     window.localStorage.setItem(LATEST_SVG_KEY, latestSvg)
   }
 
+  function renderLayerList(metadata) {
+    layersList.innerHTML = ''
+    const layerMap = new Map()
+    
+    ;(metadata?.shapes ?? []).forEach((shape) => {
+      const layer = shape.layer || 1
+      if (!layerMap.has(layer)) {
+        layerMap.set(layer, [])
+      }
+      layerMap.get(layer).push(shape)
+    })
+    
+    const sortedLayers = Array.from(layerMap.keys()).sort((a, b) => a - b)
+    
+    sortedLayers.forEach((layerNum) => {
+      const shapes = layerMap.get(layerNum)
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'floor-plan-entity-item'
+      if (selectedLayer === layerNum) btn.classList.add('is-selected')
+      btn.textContent = `Layer ${layerNum} (${shapes.length} shapes)`
+      btn.addEventListener('click', () => {
+        selectedLayer = selectedLayer === layerNum ? null : layerNum
+        selectedShapeIds.clear()
+        if (selectedLayer !== null) {
+          shapes.forEach(shape => selectedShapeIds.add(shape.id))
+        }
+        updateSelection()
+      })
+      layersList.appendChild(btn)
+    })
+    
+    if (layersList.children.length === 0) {
+      const empty = document.createElement('li')
+      empty.className = 'floor-plan-entity-empty'
+      empty.textContent = 'No layers.'
+      layersList.appendChild(empty)
+    }
+  }
+
   function renderEntityList(metadata) {
     entitiesList.innerHTML = ''
     ;(metadata?.shapes ?? []).forEach((shape, index) => {
       const id = shape.id ?? `shape-${index + 1}`
+      const layer = shape.layer || 1
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'floor-plan-entity-item'
-      if (selectedShapeId === id) btn.classList.add('is-selected')
-      btn.textContent = `${shape.type} (${Number(shape.x).toFixed(0)}, ${Number(shape.y).toFixed(0)})`
-      btn.addEventListener('click', () => {
-        selectedShapeId = id
-        bindSvgInteractions()
+      if (selectedShapeIds.has(id)) btn.classList.add('is-selected')
+      btn.textContent = `${shape.type} [L${layer}] (${Number(shape.x).toFixed(0)}, ${Number(shape.y).toFixed(0)})`
+      btn.addEventListener('click', (e) => {
+        if (e.shiftKey) {
+          if (selectedShapeIds.has(id)) {
+            selectedShapeIds.delete(id)
+          } else {
+            selectedShapeIds.add(id)
+          }
+        } else {
+          selectedShapeIds.clear()
+          selectedShapeIds.add(id)
+        }
+        selectedLayer = null
+        updateSelection()
       })
       entitiesList.appendChild(btn)
     })
@@ -264,6 +332,49 @@ export function mountArtGridTool(containerElement) {
     }
   }
 
+  function updateSelection() {
+    const svg = previewContent.querySelector('svg')
+    if (!svg) return
+    const metadata = decodeSvgMetadata(svg)
+    if (!metadata) return
+    
+    // Update shape visual selection
+    svg.querySelectorAll('.art-shape').forEach((element) => {
+      const id = element.getAttribute('data-id')
+      element.classList.toggle('is-selected', id != null && selectedShapeIds.has(id))
+    })
+    
+    // Add selection outlines
+    let outlineGroup = svg.querySelector('#selection-outlines')
+    if (!outlineGroup) {
+      outlineGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      outlineGroup.id = 'selection-outlines'
+      outlineGroup.style.pointerEvents = 'none'
+      svg.appendChild(outlineGroup)
+    }
+    outlineGroup.innerHTML = ''
+    
+    selectedShapeIds.forEach(id => {
+      const shape = metadata.shapes.find(s => s.id === id)
+      if (!shape) return
+      
+      const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+      const padding = 4
+      outline.setAttribute('x', shape.x - shape.size / 2 - padding)
+      outline.setAttribute('y', shape.y - shape.size / 2 - padding)
+      outline.setAttribute('width', shape.size + padding * 2)
+      outline.setAttribute('height', shape.size + padding * 2)
+      outline.setAttribute('fill', 'none')
+      outline.setAttribute('stroke', '#00ffff')
+      outline.setAttribute('stroke-width', '2')
+      outline.setAttribute('stroke-dasharray', '4 4')
+      outlineGroup.appendChild(outline)
+    })
+    
+    renderLayerList(metadata)
+    renderEntityList(metadata)
+  }
+
   function bindSvgInteractions() {
     const svg = previewContent.querySelector('svg')
     if (!svg) return
@@ -273,12 +384,29 @@ export function mountArtGridTool(containerElement) {
     if (!viewBox) return
     
     metadata.shapes = Array.isArray(metadata.shapes) ? metadata.shapes : []
-
-    svg.querySelectorAll('.art-shape').forEach((element) => {
-      const id = element.getAttribute('data-id')
-      element.classList.toggle('is-selected', id != null && id === selectedShapeId)
+    
+    // Assign layers to shapes that don't have them
+    let needsUpdate = false
+    metadata.shapes.forEach((shape, index) => {
+      if (!shape.layer || shape.layer < 1) {
+        shape.layer = (index % 5) + 1 // Distribute across 5 layers
+        needsUpdate = true
+      }
     })
-    renderEntityList(metadata)
+    
+    if (needsUpdate) {
+      // Update the SVG elements with layer data
+      svg.querySelectorAll('.art-shape').forEach((element) => {
+        const id = element.getAttribute('data-id')
+        const shape = metadata.shapes.find(s => s.id === id)
+        if (shape && shape.layer) {
+          element.setAttribute('data-layer', shape.layer)
+        }
+      })
+      persistMetadata(svg, metadata)
+    }
+
+    updateSelection()
 
     const svgPoint = svg.createSVGPoint()
     const toSvgCoordinates = (event) => {
@@ -342,7 +470,26 @@ export function mountArtGridTool(containerElement) {
         const shape = metadata.shapes.find((entry) => entry.id === id)
         const point = toSvgCoordinates(event)
         if (!id || !shape || !point) return
-        selectedShapeId = id
+        
+        // Multi-select with shift
+        if (event.shiftKey) {
+          if (selectedShapeIds.has(id)) {
+            selectedShapeIds.delete(id)
+          } else {
+            selectedShapeIds.add(id)
+          }
+          updateSelection()
+          event.preventDefault()
+          return
+        }
+        
+        // Single select and start drag
+        if (!selectedShapeIds.has(id)) {
+          selectedShapeIds.clear()
+          selectedShapeIds.add(id)
+          selectedLayer = null
+        }
+        
         dragState = {
           kind: 'shape',
           id,
@@ -356,11 +503,11 @@ export function mountArtGridTool(containerElement) {
         event.preventDefault()
         return
       }
-      selectedShapeId = null
+      selectedShapeIds.clear()
+      selectedLayer = null
       const currentViewBox = parseViewBox(svg)
       if (!currentViewBox) return
-      svg.querySelectorAll('.art-shape').forEach((el) => el.classList.remove('is-selected'))
-      renderEntityList(metadata)
+      updateSelection()
       dragState = {
         kind: 'pan',
         element: svg,
@@ -429,9 +576,9 @@ export function mountArtGridTool(containerElement) {
     isGenerating = true
     const options = {
       seed: readPositiveInt(seed.input, Date.now()),
-      width: readPositiveInt(width.input, 420),
-      height: readPositiveInt(height.input, 920),
-      shapeCount: readBoundedInt(shapeCount.input, 80, 20, 200),
+      width: readPositiveInt(width.input, 1200),
+      height: readPositiveInt(height.input, 2400),
+      shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
       minSize: readBoundedInt(minSize.input, 8, 2, 100),
       maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
     }
@@ -458,7 +605,8 @@ export function mountArtGridTool(containerElement) {
       const statsText = `Shapes: ${grid.meta.shapeCount} · Size: ${grid.meta.width}×${grid.meta.height}px`
       stats.textContent = statsText
       persistSettings(statsText)
-      selectedShapeId = null
+      selectedShapeIds.clear()
+      selectedLayer = null
       bindSvgInteractions()
       status.textContent = 'Art grid generated.'
     } catch (error) {
@@ -475,13 +623,17 @@ export function mountArtGridTool(containerElement) {
     const metadata = decodeSvgMetadata(svg)
     if (!metadata) return
     metadata.shapes = Array.isArray(metadata.shapes) ? metadata.shapes : []
-    if (selectedShapeId != null) {
-      metadata.shapes = metadata.shapes.filter((entry) => entry.id !== selectedShapeId)
-      selectedShapeId = null
+    if (selectedShapeIds.size > 0) {
+      const currentViewBoxRaw = svg.getAttribute('viewBox')
+      selectedShapeIds.forEach(id => {
+        metadata.shapes = metadata.shapes.filter((entry) => entry.id !== id)
+      })
+      selectedShapeIds.clear()
+      selectedLayer = null
       const grid = {
         meta: {
-          width: readPositiveInt(width.input, 420),
-          height: readPositiveInt(height.input, 920),
+          width: readPositiveInt(width.input, 1200),
+          height: readPositiveInt(height.input, 2400),
           seed: readPositiveInt(seed.input, Date.now()),
           shapeCount: metadata.shapes.length,
         },
@@ -489,6 +641,10 @@ export function mountArtGridTool(containerElement) {
       }
       latestSvg = renderArtGridSvg(grid)
       previewContent.innerHTML = latestSvg
+      const refreshedSvg = previewContent.querySelector('svg')
+      if (refreshedSvg && currentViewBoxRaw) {
+        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+      }
       bindSvgInteractions()
       status.textContent = 'Shape deleted.'
       return
@@ -498,15 +654,100 @@ export function mountArtGridTool(containerElement) {
 
   window.addEventListener('keydown', (event) => {
     if (previewContainer.classList.contains('hidden')) return
-    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedShapeId != null) {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selectedShapeIds.size > 0) {
       deleteEntityBtn.click()
       event.preventDefault()
     }
   })
 
   randomizeBtn.addEventListener('click', () => {
-    seed.input.value = String(randomSeed())
-    generate()
+    // If a layer is selected, only regenerate shapes in that layer
+    if (selectedLayer !== null) {
+      const svg = previewContent.querySelector('svg')
+      if (!svg) return
+      const metadata = decodeSvgMetadata(svg)
+      if (!metadata) return
+      
+      const currentViewBoxRaw = svg.getAttribute('viewBox')
+      const canvasWidth = readPositiveInt(width.input, 1200)
+      const canvasHeight = readPositiveInt(height.input, 2400)
+      
+      // Get shapes in the selected layer and regenerate them
+      const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
+      const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
+      
+      // Generate new shapes for this layer with a random seed
+      const newSeed = randomSeed()
+      const rng = (() => {
+        let state = (Number(newSeed) >>> 0) || 1;
+        return () => {
+          state ^= state << 13;
+          state ^= state >>> 17;
+          state ^= state << 5;
+          return (state >>> 0) / 4294967296;
+        };
+      })()
+      
+      const randomInt = (min, max) => Math.floor(rng() * (max - min + 1)) + min
+      const randomChoice = (arr) => arr[randomInt(0, arr.length - 1)]
+      
+      const minSz = readBoundedInt(minSize.input, 8, 2, 100)
+      const maxSz = readBoundedInt(maxSize.input, 120, 10, 300)
+      const colors = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
+      const patterns = ['solid', 'hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes']
+      
+      const newLayerShapes = layerShapes.map(oldShape => {
+        const shapeType = randomChoice(['rect', 'circle', 'rect', 'circle'])
+        const size = randomInt(minSz, maxSz)
+        const halfSize = size / 2
+        const minX = halfSize
+        const maxX = canvasWidth - halfSize
+        const minY = halfSize
+        const maxY = canvasHeight - halfSize
+        const x = minX + rng() * (maxX - minX)
+        const y = minY + rng() * (maxY - minY)
+        
+        return {
+          ...oldShape,
+          type: shapeType,
+          x,
+          y,
+          size,
+          color: randomChoice(colors),
+          pattern: randomChoice(patterns),
+          rotation: rng() * 360,
+        }
+      })
+      
+      metadata.shapes = [...otherShapes, ...newLayerShapes]
+      
+      const grid = {
+        meta: {
+          width: canvasWidth,
+          height: canvasHeight,
+          seed: readPositiveInt(seed.input, Date.now()),
+          shapeCount: metadata.shapes.length,
+        },
+        shapes: metadata.shapes,
+      }
+      
+      latestSvg = renderArtGridSvg(grid)
+      previewContent.innerHTML = latestSvg
+      const refreshedSvg = previewContent.querySelector('svg')
+      if (refreshedSvg && currentViewBoxRaw) {
+        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+      }
+      
+      // Keep the layer selected and update selection
+      selectedShapeIds.clear()
+      newLayerShapes.forEach(shape => selectedShapeIds.add(shape.id))
+      bindSvgInteractions()
+      status.textContent = `Regenerated ${newLayerShapes.length} shapes in Layer ${selectedLayer}.`
+    } else {
+      // No layer selected - randomize seed and regenerate everything
+      seed.input.value = String(randomSeed())
+      generate()
+    }
   })
   generateBtn.addEventListener('click', generate)
   saveBtn.addEventListener('click', () => {

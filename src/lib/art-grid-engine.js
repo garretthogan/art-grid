@@ -3,8 +3,8 @@
  */
 
 const DEFAULT_OPTIONS = {
-  width: 420,
-  height: 920,
+  width: 1200,
+  height: 2400,
   shapeCount: 80,
   seed: Date.now(),
   minSize: 8,
@@ -50,6 +50,9 @@ function generateShape(rng, options, bounds) {
   const pattern = randomChoice(rng, options.patterns);
   const rotation = rng() * 360;
   
+  // Assign to a random layer (1-5)
+  const layer = randomInt(rng, 1, 5);
+  
   return {
     type: shapeType,
     x,
@@ -58,6 +61,7 @@ function generateShape(rng, options, bounds) {
     color,
     pattern,
     rotation,
+    layer,
     id: `shape-${Math.floor(rng() * 1000000)}`,
   };
 }
@@ -142,16 +146,17 @@ function renderShape(shape, index) {
   const strokeWidth = shape.pattern === 'solid' ? 0.5 : 0.25;
   
   const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`;
+  const layer = shape.layer || 1;
   
   if (shape.type === 'circle') {
     return `
-<g class="art-shape" data-id="${shape.id}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
+<g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
   <circle cx="0" cy="0" r="${shape.size / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke" />
 </g>`;
   } else {
     const halfSize = shape.size / 2;
     return `
-<g class="art-shape" data-id="${shape.id}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
+<g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
   <rect x="${-halfSize}" y="${-halfSize}" width="${shape.size}" height="${shape.size}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke" />
 </g>`;
   }
@@ -180,6 +185,7 @@ export function renderArtGridSvg(grid, options = {}) {
       color: shape.color,
       pattern: shape.pattern,
       rotation: shape.rotation,
+      layer: shape.layer || 1,
     })),
   });
   
