@@ -512,6 +512,15 @@ export function mountArtGridTool(containerElement) {
   if (savedSvg) {
     latestSvg = savedSvg
     previewContent.innerHTML = latestSvg
+    // Reset viewBox to default on load to avoid loading with a zoomed/panned view
+    const loadedSvg = previewContent.querySelector('svg')
+    if (loadedSvg) {
+      const baseViewBox = readBaseViewBox(loadedSvg)
+      if (baseViewBox) {
+        loadedSvg.setAttribute('viewBox', `${baseViewBox.minX} ${baseViewBox.minY} ${baseViewBox.width} ${baseViewBox.height}`)
+        latestSvg = loadedSvg.outerHTML
+      }
+    }
     status.textContent = 'Loaded previous art grid.'
     bindSvgInteractions()
   } else {
