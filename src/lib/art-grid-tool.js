@@ -937,11 +937,20 @@ export function mountArtGridTool(containerElement) {
     }
     outlineGroup.innerHTML = ''
     
+    const baseViewBox = readBaseViewBox(svg)
+    const refSize = 1200
+    const canvasSize = baseViewBox ? Math.min(baseViewBox.width, baseViewBox.height) : refSize
+    const scale = canvasSize / refSize
+    const padding = Math.max(1, 4 * scale)
+    const outlineStrokeWidth = Math.max(0.5, 2 * scale)
+    const outlineDashLen = Math.max(1, 4 * scale)
+    const gizmoRadius = Math.max(2, 6 * scale)
+    const gizmoStrokeWidth = Math.max(0.5, 2 * scale)
+
     selectedShapeIds.forEach(id => {
       const shape = metadata.shapes.find(s => s.id === id)
       if (!shape) return
       
-      const padding = 4
       const outlineX = shape.x - shape.size / 2 - padding
       const outlineY = shape.y - shape.size / 2 - padding
       const outlineWidth = shape.size + padding * 2
@@ -954,12 +963,10 @@ export function mountArtGridTool(containerElement) {
       outline.setAttribute('height', outlineHeight)
       outline.setAttribute('fill', 'none')
       outline.setAttribute('stroke', '#00ffff')
-      outline.setAttribute('stroke-width', '2')
-      outline.setAttribute('stroke-dasharray', '4 4')
+      outline.setAttribute('stroke-width', String(outlineStrokeWidth))
+      outline.setAttribute('stroke-dasharray', `${outlineDashLen} ${outlineDashLen}`)
       outline.style.pointerEvents = 'none'
       outlineGroup.appendChild(outline)
-      
-      const gizmoRadius = 6
       
       // Add rotation gizmo in top right corner
       const rotateGizmoX = outlineX + outlineWidth
@@ -971,7 +978,7 @@ export function mountArtGridTool(containerElement) {
       rotateGizmo.setAttribute('r', gizmoRadius)
       rotateGizmo.setAttribute('fill', '#00ffff')
       rotateGizmo.setAttribute('stroke', '#ffffff')
-      rotateGizmo.setAttribute('stroke-width', '2')
+      rotateGizmo.setAttribute('stroke-width', String(gizmoStrokeWidth))
       rotateGizmo.style.cursor = 'grab'
       rotateGizmo.style.pointerEvents = 'all'
       rotateGizmo.setAttribute('data-rotation-gizmo', id)
@@ -988,7 +995,7 @@ export function mountArtGridTool(containerElement) {
       scaleGizmo.setAttribute('height', gizmoRadius * 2)
       scaleGizmo.setAttribute('fill', '#ffff00')
       scaleGizmo.setAttribute('stroke', '#ffffff')
-      scaleGizmo.setAttribute('stroke-width', '2')
+      scaleGizmo.setAttribute('stroke-width', String(gizmoStrokeWidth))
       scaleGizmo.style.cursor = 'nwse-resize'
       scaleGizmo.style.pointerEvents = 'all'
       scaleGizmo.setAttribute('data-scale-gizmo', id)
