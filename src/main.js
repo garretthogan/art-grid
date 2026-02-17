@@ -1,5 +1,6 @@
-import './tui.css'
+import './design-system.css'
 import './style.css'
+import './art-grid-app.css'
 import { mountArtGridTool } from './lib/art-grid-tool.js'
 
 const previewRoot = document.getElementById('floor-plan-tool-root')

@@ -1,0 +1,1220 @@
+/*
+  TUI Design System
+  High-contrast retro terminal aesthetic. Drop-in single file.
+  Activation: add class="tui" to body (or html).
+*/
+
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/iosevka@5.0.0/400.css");
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/iosevka@5.0.0/700.css");
+
+/* ===== 1. Design Tokens ===== */
+:root {
+  /* Core colors */
+  --tui-bg: #000;
+  --tui-fg: #f2f2f2;
+  --tui-muted: #9aa0a6;
+
+  /* Lines */
+  --tui-line: rgba(255, 255, 255, 0.16);
+  --tui-line-strong: rgba(255, 255, 255, 0.28);
+
+  /* Accents (high contrast) */
+  --tui-pink: #ff00ff;
+  --tui-cyan: #00d4ff;
+
+  /* States */
+  --tui-danger: #ff4d4d;
+  --tui-ok: #33ff99;
+
+  /* Spacing */
+  --tui-pad-1: 6px;
+  --tui-pad-2: 10px;
+  --tui-pad-3: 12px;
+  --tui-gap: 8px;
+  --tui-gap-sm: 4px;
+  --tui-gap-lg: 12px;
+
+  /* Layout overrides (override in project without touching design) */
+  --tui-element-width: unset;
+  --tui-element-height: unset;
+  --tui-element-min-width: unset;
+  --tui-element-max-width: unset;
+  --tui-modal-width: min(600px, calc(100vw - 2rem));
+  --tui-modal-max-height: min(80vh, 640px);
+  --tui-panel-width: unset;
+  --tui-controls-area-bg: rgba(0, 0, 0, 0.3);
+  --tui-controls-surface-bg: rgba(0, 0, 0, 0.7);
+  --tui-controls-area-width: 320px;
+  --tui-controls-area-max-height: 50vh;
+  --tui-panel-padding: var(--tui-pad-2);
+  --tui-button-padding-x: 10px;
+  --tui-button-padding-y: 6px;
+  --tui-input-padding-x: 8px;
+  --tui-input-padding-y: 6px;
+  --tui-input-width: 100%;
+  --tui-scrollbar-size: 10px;
+  --tui-checkbox-size: 14px;
+  --tui-range-thumb-size: 10px;
+
+  /* Typography */
+  --tui-font: "Iosevka", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --tui-font-size: 12px;
+  --tui-font-size-sm: 0.75rem;
+  --tui-font-size-lg: 1rem;
+  --tui-letter-spacing: 0.02em;
+
+  /* Borders */
+  --tui-bw: 1px;
+  --tui-radius: 0;
+}
+
+/* ===== 2. Global Reset (scoped) ===== */
+body.tui,
+body.tui * {
+  box-sizing: border-box;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border-radius: var(--tui-radius) !important;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body.tui {
+  margin: 0;
+  background: var(--tui-bg);
+  color: var(--tui-fg);
+  font-family: var(--tui-font);
+  font-size: var(--tui-font-size);
+  letter-spacing: var(--tui-letter-spacing);
+}
+
+body.tui ::selection {
+  background: rgba(38, 198, 255, 0.25);
+}
+
+body.tui :focus-visible {
+  outline: 2px solid var(--tui-cyan);
+  outline-offset: 2px;
+}
+
+/* ===== 3. HTML Element Defaults ===== */
+
+/* Text and phrasing */
+body.tui a {
+  color: var(--tui-cyan);
+  text-decoration: none;
+}
+body.tui a:hover {
+  color: var(--tui-pink);
+}
+
+body.tui abbr,
+body.tui dfn {
+  border-bottom: 1px dotted var(--tui-line);
+  cursor: help;
+  color: inherit;
+}
+
+body.tui b,
+body.tui strong {
+  font-weight: bold;
+  color: inherit;
+}
+
+body.tui bdi,
+body.tui bdo {
+  color: inherit;
+}
+
+body.tui cite {
+  font-style: italic;
+  color: var(--tui-muted);
+}
+
+body.tui code,
+body.tui kbd,
+body.tui samp,
+body.tui var {
+  font-family: var(--tui-font);
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tui-fg);
+  font-size: var(--tui-font-size-sm);
+}
+
+body.tui del {
+  text-decoration: line-through;
+  color: var(--tui-muted);
+}
+
+body.tui em,
+body.tui i {
+  font-style: italic;
+  color: inherit;
+}
+
+body.tui ins {
+  text-decoration: underline;
+  color: inherit;
+}
+
+body.tui mark {
+  background: rgba(0, 212, 255, 0.2);
+  color: inherit;
+}
+
+body.tui q {
+  color: inherit;
+}
+
+body.tui ruby,
+body.tui rt,
+body.tui rp {
+  font-size: var(--tui-font-size-sm);
+  color: inherit;
+}
+
+body.tui s {
+  text-decoration: line-through;
+  color: var(--tui-muted);
+}
+
+body.tui small {
+  font-size: var(--tui-font-size-sm);
+  color: var(--tui-muted);
+}
+
+body.tui sub,
+body.tui sup {
+  font-size: 0.75em;
+  line-height: 0;
+  vertical-align: baseline;
+  color: inherit;
+}
+body.tui sup { vertical-align: super; }
+body.tui sub { vertical-align: sub; }
+
+body.tui u {
+  text-decoration: underline;
+  color: inherit;
+}
+
+body.tui span {
+  color: inherit;
+}
+
+/* Headings and paragraphs */
+body.tui h1, body.tui h2, body.tui h3, body.tui h4, body.tui h5, body.tui h6 {
+  font-family: var(--tui-font);
+  color: var(--tui-fg);
+  margin: 0 0 var(--tui-gap);
+  line-height: 1.2;
+}
+body.tui h1 { font-size: 1.5rem; }
+body.tui h2 { font-size: 1.25rem; }
+body.tui h3 { font-size: 1.125rem; }
+body.tui h4 { font-size: 1rem; }
+body.tui h5 { font-size: var(--tui-font-size-sm); }
+body.tui h6 { font-size: var(--tui-font-size-sm); }
+
+body.tui p {
+  margin: 0 0 var(--tui-gap);
+  color: var(--tui-fg);
+}
+
+body.tui blockquote {
+  margin: 0 0 var(--tui-gap);
+  padding: var(--tui-pad-2) var(--tui-pad-2) var(--tui-pad-2) var(--tui-pad-3);
+  border-left: var(--tui-bw) solid var(--tui-cyan);
+  color: var(--tui-muted);
+}
+
+body.tui pre {
+  font-family: var(--tui-font);
+  margin: 0 0 var(--tui-gap);
+  padding: var(--tui-pad-2);
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  overflow: auto;
+  color: var(--tui-fg);
+  background: var(--tui-bg);
+}
+
+/* Lists and definitions */
+body.tui ul,
+body.tui ol {
+  margin: 0 0 var(--tui-gap);
+  padding-left: 1.5em;
+  color: var(--tui-fg);
+}
+
+body.tui li {
+  margin: var(--tui-gap-sm) 0;
+  color: inherit;
+}
+
+body.tui dl {
+  margin: 0 0 var(--tui-gap);
+  color: var(--tui-fg);
+}
+
+body.tui dt {
+  font-weight: bold;
+  margin-top: var(--tui-gap);
+  color: var(--tui-fg);
+}
+body.tui dt:first-child { margin-top: 0; }
+
+body.tui dd {
+  margin-left: 1.5em;
+  margin-bottom: var(--tui-gap-sm);
+  color: var(--tui-fg);
+}
+
+/* Sections and grouping */
+body.tui div {
+  color: inherit;
+}
+
+body.tui main,
+body.tui article,
+body.tui section,
+body.tui aside,
+body.tui nav,
+body.tui header,
+body.tui footer {
+  color: var(--tui-fg);
+}
+
+body.tui address {
+  font-style: italic;
+  color: var(--tui-muted);
+}
+
+body.tui figure {
+  margin: 0 0 var(--tui-gap);
+}
+
+body.tui figcaption {
+  font-size: var(--tui-font-size-sm);
+  color: var(--tui-muted);
+  margin-top: var(--tui-gap-sm);
+}
+
+body.tui details {
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  padding: var(--tui-pad-2);
+  margin: 0 0 var(--tui-gap);
+}
+
+body.tui summary {
+  cursor: pointer;
+  padding: var(--tui-pad-1) 0;
+  list-style: none;
+  color: var(--tui-fg);
+}
+body.tui summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Tables */
+body.tui table {
+  border-collapse: collapse;
+  width: var(--tui-element-width, 100%);
+  margin: 0 0 var(--tui-gap);
+  color: var(--tui-fg);
+}
+
+body.tui thead,
+body.tui tbody,
+body.tui tfoot {
+  color: var(--tui-fg);
+}
+
+body.tui tr {
+  border-bottom: var(--tui-bw) solid var(--tui-line);
+}
+
+body.tui th,
+body.tui td {
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  border: var(--tui-bw) solid var(--tui-line);
+  text-align: left;
+}
+
+body.tui th {
+  font-weight: bold;
+  color: var(--tui-fg);
+}
+
+body.tui caption {
+  font-size: var(--tui-font-size-sm);
+  color: var(--tui-muted);
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  caption-side: top;
+}
+
+/* Forms base */
+body.tui form {
+  display: block;
+  gap: var(--tui-gap);
+}
+
+body.tui fieldset {
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  padding: var(--tui-pad-2);
+  margin: 0 0 var(--tui-gap);
+}
+
+body.tui legend {
+  color: var(--tui-muted);
+  padding: 0 var(--tui-pad-1);
+}
+
+body.tui label {
+  color: var(--tui-muted);
+  cursor: pointer;
+}
+
+body.tui output {
+  color: var(--tui-fg);
+  font-family: var(--tui-font);
+}
+
+/* Embedded and media */
+body.tui img {
+  max-width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+body.tui video,
+body.tui audio {
+  max-width: 100%;
+  border: var(--tui-bw) solid var(--tui-line-strong);
+}
+
+body.tui canvas {
+  display: block;
+}
+
+body.tui iframe,
+body.tui embed,
+body.tui object {
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  max-width: 100%;
+}
+
+body.tui picture {
+  display: block;
+}
+
+/* Dividers and breaks */
+body.tui hr {
+  border: 0;
+  border-top: var(--tui-bw) solid var(--tui-line);
+  margin: var(--tui-gap) 0;
+}
+
+/* Other */
+body.tui dialog {
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  padding: var(--tui-pad-2);
+  background: var(--tui-bg);
+  color: var(--tui-fg);
+}
+
+body.tui data,
+body.tui time {
+  color: inherit;
+}
+
+body.tui noscript {
+  display: block;
+  padding: var(--tui-pad-2);
+  color: var(--tui-muted);
+}
+
+body.tui template {
+  display: none;
+}
+
+/* ===== 4. Form Controls ===== */
+body.tui button,
+body.tui input,
+body.tui select,
+body.tui textarea {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+  appearance: none;
+}
+
+body.tui button,
+body.tui .button {
+  padding: var(--tui-button-padding-y) var(--tui-button-padding-x);
+  border: 2px solid var(--tui-cyan);
+  background: transparent;
+  cursor: pointer;
+  line-height: 1.1;
+}
+
+body.tui button:hover,
+body.tui .button:hover {
+  border-color: var(--tui-cyan);
+}
+
+body.tui button:active,
+body.tui .button:active {
+  border-color: var(--tui-pink);
+}
+
+body.tui button[disabled],
+body.tui button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--tui-line);
+  /* Keep border-width same as enabled (2px) to prevent layout shift when toggling disabled */
+}
+
+body.tui button.primary {
+  border-color: var(--tui-pink);
+}
+
+body.tui button.danger {
+  border-color: var(--tui-danger);
+}
+
+body.tui button.ok {
+  border-color: var(--tui-ok);
+}
+
+/* Text-like inputs */
+body.tui input[type="text"],
+body.tui input[type="search"],
+body.tui input[type="email"],
+body.tui input[type="url"],
+body.tui input[type="tel"],
+body.tui input[type="number"],
+body.tui textarea {
+  width: var(--tui-input-width);
+  padding: var(--tui-input-padding-y) var(--tui-input-padding-x);
+  border: 2px solid var(--tui-line-strong);
+  background: transparent;
+}
+
+body.tui input[type="text"]:hover,
+body.tui input[type="search"]:hover,
+body.tui input[type="email"]:hover,
+body.tui input[type="url"]:hover,
+body.tui input[type="tel"]:hover,
+body.tui input[type="number"]:hover,
+body.tui textarea:hover,
+body.tui input[type="text"]:focus,
+body.tui input[type="search"]:focus,
+body.tui input[type="email"]:focus,
+body.tui input[type="url"]:focus,
+body.tui input[type="tel"]:focus,
+body.tui input[type="number"]:focus,
+body.tui textarea:focus {
+  border-color: var(--tui-cyan);
+}
+
+body.tui textarea {
+  min-height: 4em;
+  resize: vertical;
+}
+
+/* Select */
+body.tui select {
+  width: var(--tui-input-width);
+  padding: var(--tui-input-padding-y) 30px var(--tui-input-padding-y) var(--tui-input-padding-x);
+  border: 2px solid var(--tui-line-strong);
+  background: transparent;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--tui-cyan) 50%),
+    linear-gradient(135deg, var(--tui-cyan) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 55%, calc(100% - 10px) 55%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+body.tui select:hover,
+body.tui select:focus {
+  border-color: var(--tui-cyan);
+}
+
+/* Checkbox */
+body.tui input[type="checkbox"] {
+  width: var(--tui-checkbox-size);
+  height: var(--tui-checkbox-size);
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  background: var(--tui-bg);
+  accent-color: var(--tui-cyan);
+  vertical-align: middle;
+  margin-right: var(--tui-gap);
+  cursor: pointer;
+}
+
+body.tui input[type="checkbox"]:checked {
+  border-color: var(--tui-cyan);
+  background: var(--tui-cyan);
+}
+
+/* Radio */
+body.tui input[type="radio"] {
+  width: var(--tui-checkbox-size);
+  height: var(--tui-checkbox-size);
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  background: var(--tui-bg);
+  accent-color: var(--tui-cyan);
+  vertical-align: middle;
+  margin-right: var(--tui-gap);
+  cursor: pointer;
+}
+
+body.tui input[type="radio"]:checked {
+  border-color: var(--tui-cyan);
+}
+
+/* Range */
+body.tui input[type="range"] {
+  width: var(--tui-input-width, 100%);
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+body.tui input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--tui-line-strong);
+}
+
+body.tui input[type="range"]::-moz-range-track {
+  height: 2px;
+  background: var(--tui-line-strong);
+}
+
+body.tui input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--tui-range-thumb-size);
+  height: var(--tui-range-thumb-size);
+  margin-top: -4px;
+  background: transparent;
+  border: 2px solid var(--tui-cyan);
+  cursor: pointer;
+}
+
+body.tui input[type="range"]::-moz-range-thumb {
+  width: var(--tui-range-thumb-size);
+  height: var(--tui-range-thumb-size);
+  background: transparent;
+  border: 2px solid var(--tui-cyan);
+  cursor: pointer;
+}
+
+body.tui input[type="range"]:hover::-webkit-slider-thumb {
+  border-color: var(--tui-pink);
+}
+
+body.tui input[type="range"]:hover::-moz-range-thumb {
+  border-color: var(--tui-pink);
+}
+
+/* Color input */
+body.tui input[type="color"] {
+  width: 2.5rem;
+  height: 1.5rem;
+  padding: 2px;
+  border: 2px solid var(--tui-line-strong);
+  background: transparent;
+  cursor: pointer;
+}
+
+body.tui input[type="color"]:hover {
+  border-color: var(--tui-cyan);
+}
+
+/* ===== 5. Generic Components ===== */
+
+/* Panel */
+body.tui .panel {
+  border: 2px solid var(--tui-line-strong);
+  background: transparent;
+  padding: 0;
+  width: var(--tui-panel-width, auto);
+}
+
+body.tui .panel-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--tui-gap);
+  padding: var(--tui-pad-2);
+  border: 0;
+  border-bottom: 2px solid var(--tui-line-strong);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: var(--tui-fg);
+  text-align: left;
+}
+
+body.tui .panel-header:hover {
+  border-bottom-color: var(--tui-cyan);
+}
+
+body.tui .panel-header:active {
+  border-bottom-color: var(--tui-pink);
+}
+
+body.tui .panel-header[aria-disabled="true"] {
+  cursor: default;
+}
+
+body.tui .panel-chevron {
+  color: var(--tui-muted);
+  transition: transform 0.2s;
+}
+
+body.tui .panel.collapsed .panel-chevron {
+  transform: rotate(-90deg);
+}
+
+body.tui .panel-content {
+  padding: var(--tui-panel-padding);
+}
+
+body.tui .panel.collapsed .panel-content {
+  display: none;
+}
+
+/* Modal */
+body.tui .modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.tui .modal.hidden {
+  display: none;
+}
+
+body.tui .modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+body.tui .modal-content {
+  position: relative;
+  z-index: 1;
+  width: var(--tui-modal-width);
+  max-height: var(--tui-modal-max-height);
+  background: var(--tui-bg);
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  display: flex;
+  flex-direction: column;
+}
+
+body.tui .modal-header {
+  padding: var(--tui-pad-2);
+  border-bottom: var(--tui-bw) solid var(--tui-line);
+}
+
+body.tui .modal-title {
+  font-size: var(--tui-font-size);
+  color: var(--tui-fg);
+  margin: 0;
+}
+
+body.tui .modal-body {
+  padding: var(--tui-pad-2);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-gap);
+}
+
+body.tui .modal-instructions {
+  color: var(--tui-muted);
+  margin: 0;
+}
+
+body.tui .modal-actions {
+  padding: var(--tui-pad-2);
+  border-top: var(--tui-bw) solid var(--tui-line);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--tui-gap);
+}
+
+/* Toast */
+body.tui .toast {
+  background: var(--tui-bg);
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  color: var(--tui-fg);
+  padding: var(--tui-pad-2);
+}
+
+body.tui .toast-success {
+  border-color: var(--tui-ok);
+}
+
+body.tui .toast-error {
+  border-color: var(--tui-danger);
+}
+
+body.tui .toast-error .toast-message {
+  color: #ff8a8a;
+}
+
+body.tui .toast-undo {
+  border-color: var(--tui-cyan);
+}
+
+body.tui .toast-recovery {
+  border: var(--tui-bw) solid var(--tui-cyan);
+  background: transparent;
+  color: var(--tui-fg);
+}
+
+body.tui .toast-recovery:hover {
+  border-color: var(--tui-pink);
+}
+
+/* Dropdown */
+body.tui .dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: var(--tui-gap-sm);
+  min-width: 100%;
+  display: none;
+  flex-direction: column;
+  border: var(--tui-bw) solid var(--tui-line-strong);
+  background: var(--tui-bg);
+  z-index: 200;
+}
+
+body.tui .dropdown-menu.open {
+  display: flex;
+}
+
+body.tui .dropdown-menu button {
+  border: 0;
+  border-bottom: var(--tui-bw) solid var(--tui-line);
+  text-align: left;
+  padding: var(--tui-pad-2);
+}
+
+body.tui .dropdown-menu button:last-child {
+  border-bottom: 0;
+}
+
+body.tui .dropdown-menu button:hover {
+  border-color: var(--tui-cyan);
+}
+
+/* Tab */
+body.tui .tab {
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  border: 2px solid var(--tui-line-strong);
+  background: transparent;
+  cursor: pointer;
+  line-height: 1;
+  font: inherit;
+  color: var(--tui-fg);
+}
+
+body.tui .tab:hover {
+  border-color: var(--tui-cyan);
+}
+
+body.tui .tab.active {
+  border-color: var(--tui-pink);
+  color: var(--tui-fg);
+}
+
+/* Control row */
+body.tui .control-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 1fr auto;
+  align-items: center;
+  gap: var(--tui-gap);
+  padding: var(--tui-pad-1) 0;
+}
+
+body.tui .control-row label {
+  color: var(--tui-muted);
+}
+
+body.tui .control-row label:has(input[type="checkbox"]) {
+  grid-column: 1 / -1;
+}
+
+body.tui .control-row span {
+  min-width: 2rem;
+  color: var(--tui-muted);
+}
+
+/* Divider */
+body.tui .tool-divider,
+body.tui .divider {
+  height: 0;
+  border: 0;
+  border-top: var(--tui-bw) solid var(--tui-line);
+  margin: var(--tui-gap) 0;
+}
+
+/* Hidden */
+body.tui .hidden {
+  display: none !important;
+}
+
+/* Hint / secondary text */
+body.tui .hint {
+  color: var(--tui-muted);
+  font-size: 0.85em;
+}
+
+body.tui .credit-link {
+  color: var(--tui-muted);
+  text-decoration: none;
+}
+
+body.tui .credit-link:hover {
+  color: var(--tui-cyan);
+}
+
+/* Scene list / list items (generic) */
+body.tui .scene-list {
+  border: var(--tui-bw) solid var(--tui-line);
+  padding: var(--tui-pad-2);
+}
+
+body.tui .scene-list-title {
+  color: var(--tui-muted);
+  margin: 0 0 var(--tui-gap);
+  font-size: var(--tui-font-size-sm);
+}
+
+body.tui .scene-list-content {
+  max-height: 240px;
+  overflow: auto;
+  border-top: var(--tui-bw) solid var(--tui-line);
+  padding-top: var(--tui-pad-2);
+}
+
+body.tui .scene-list-item {
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  border: 2px solid var(--tui-line-strong);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: var(--tui-fg);
+}
+
+body.tui .scene-list-item:hover {
+  border-color: var(--tui-cyan);
+}
+
+body.tui .scene-list-empty {
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  border: var(--tui-bw) dashed var(--tui-line-strong);
+  color: var(--tui-muted);
+  background: transparent;
+  font: inherit;
+}
+
+/* Direction inputs (e.g. x,y,z) */
+body.tui .direction-inputs {
+  display: flex;
+  gap: var(--tui-gap);
+}
+
+body.tui .direction-inputs input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Panel actions */
+body.tui .panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tui-gap);
+  margin-bottom: var(--tui-gap);
+}
+
+/* Add-entity / brush actions */
+body.tui .add-entity-actions,
+body.tui .brush-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tui-gap);
+}
+
+body.tui .add-entity-actions button.active,
+body.tui .brush-actions button.active {
+  border-color: var(--tui-pink);
+}
+
+/* Control footer */
+body.tui .control-footer {
+  padding: var(--tui-pad-1) 0;
+  border-top: var(--tui-bw) solid var(--tui-line);
+  text-align: center;
+}
+
+/* ===== 6. Scrollbars ===== */
+body.tui *::-webkit-scrollbar {
+  width: var(--tui-scrollbar-size);
+  height: var(--tui-scrollbar-size);
+}
+
+body.tui *::-webkit-scrollbar-track {
+  background: var(--tui-bg);
+}
+
+body.tui *::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: var(--tui-bw) solid var(--tui-line-strong);
+}
+
+body.tui *::-webkit-scrollbar-thumb:hover {
+  border-color: var(--tui-cyan);
+}
+
+/* ===== 7. Optional App Shell (for editor examples) ===== */
+body.tui #app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.tui #header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--tui-pad-2);
+  border-bottom: var(--tui-bw) solid var(--tui-line-strong);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+body.tui #viewport,
+body.tui .canvas-area {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  z-index: 0;
+}
+
+body.tui #viewport {
+  background: var(--tui-bg);
+  border-bottom: var(--tui-bw) solid var(--tui-line);
+}
+
+/* Controls area (collapsible overlay panel, default: bottom) */
+body.tui #controls-area {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  max-height: var(--tui-controls-area-max-height);
+  display: flex;
+  flex-direction: column;
+  border-top: var(--tui-bw) solid var(--tui-line-strong);
+  background: var(--tui-controls-area-bg, rgba(0, 0, 0, 0.3));
+  pointer-events: auto;
+}
+
+/* Ensure controls-area and its descendants don't block the canvas underneath */
+body.tui #controls-area .controls-area-content,
+body.tui #controls-area .controls-panels {
+  background: transparent !important;
+}
+
+/* Opaque backgrounds for interactive elements so they're readable over the semi-transparent panel */
+body.tui #controls-area .panel,
+body.tui #controls-area .panel-content {
+  background: var(--tui-controls-surface-bg) !important;
+}
+
+body.tui #controls-area button,
+body.tui #controls-area .button {
+  background: var(--tui-controls-surface-bg) !important;
+}
+
+body.tui #controls-area input[type="text"],
+body.tui #controls-area input[type="search"],
+body.tui #controls-area input[type="email"],
+body.tui #controls-area input[type="url"],
+body.tui #controls-area input[type="tel"],
+body.tui #controls-area input[type="number"],
+body.tui #controls-area input[type="color"],
+body.tui #controls-area select,
+body.tui #controls-area textarea {
+  background: var(--tui-controls-surface-bg) !important;
+}
+
+body.tui #controls-area input[type="checkbox"],
+body.tui #controls-area input[type="radio"] {
+  background: var(--tui-controls-surface-bg) !important;
+}
+
+body.tui #controls-area input[type="checkbox"]:checked,
+body.tui #controls-area input[type="radio"]:checked {
+  background: var(--tui-cyan) !important;
+}
+
+body.tui #controls-area .scene-list-item,
+body.tui #controls-area .scene-list-empty,
+body.tui #controls-area .entity-picker-option {
+  background: var(--tui-controls-surface-bg) !important;
+}
+
+body.tui .controls-area-header-row {
+  display: flex;
+  align-items: center;
+  gap: var(--tui-gap);
+}
+
+body.tui .controls-area-header {
+  display: flex;
+  align-items: center;
+  gap: var(--tui-gap);
+  padding: var(--tui-pad-2);
+  border: 0;
+  background: transparent;
+  color: var(--tui-fg);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  flex: 0 0 auto;
+}
+
+body.tui .controls-area-header:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--tui-cyan);
+}
+
+body.tui .controls-area-chevron {
+  color: var(--tui-muted);
+  transition: transform 0.2s;
+}
+
+body.tui #controls-area.collapsed .controls-area-chevron {
+  transform: rotate(-90deg);
+}
+
+body.tui .controls-area-content {
+  padding: var(--tui-pad-2);
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+body.tui #controls-area.collapsed .controls-area-content {
+  display: none;
+}
+
+body.tui .controls-panels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-gap);
+  min-width: 0;
+}
+
+body.tui .mode-panel {
+  min-width: 0;
+}
+
+/* Entity picker (generic option grid for modals) */
+body.tui .entity-picker-dialog {
+  border: 2px solid var(--tui-line-strong);
+  padding: var(--tui-pad-2);
+  background: var(--tui-bg);
+}
+
+body.tui .entity-picker-option {
+  padding: var(--tui-pad-2);
+  border: 2px solid var(--tui-line-strong);
+  background: transparent;
+  color: var(--tui-fg);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: var(--tui-gap);
+}
+
+body.tui .entity-picker-option:hover {
+  border-color: var(--tui-cyan);
+}
+
+/* Export list (for modals) */
+body.tui .export-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-gap);
+}
+
+body.tui .export-group {
+  border: var(--tui-bw) solid var(--tui-line);
+  padding: var(--tui-pad-1);
+}
+
+body.tui .export-group > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+body.tui .export-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.tui .export-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-pad-1);
+  padding: var(--tui-pad-1) 0 0 1rem;
+}
+
+body.tui .export-item,
+body.tui .export-label {
+  display: flex;
+  align-items: center;
+  gap: var(--tui-gap);
+  color: var(--tui-fg);
+}
+
+/* Optional: left-side overlay controls (e.g. art-grid style) */
+body.tui #app.app-layout-row #controls-area {
+  bottom: auto;
+  right: auto;
+  left: 0;
+  top: 0;
+  width: var(--tui-controls-area-width);
+  max-height: none;
+  height: 100vh;
+  border-top: 0;
+  border-right: var(--tui-bw) solid var(--tui-line-strong);
+}

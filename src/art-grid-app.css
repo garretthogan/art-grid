@@ -1,0 +1,411 @@
+/*
+  Art-grid app-specific styles.
+  Uses the TUI design system; this file adds layout and app-only components.
+*/
+
+body.tui {
+  overflow: hidden;
+}
+
+/* App layout: left sidebar + canvas (row layout) */
+body.tui #app.app-layout-row {
+  flex-direction: row;
+  overflow: hidden;
+}
+
+/* Controls area: left sidebar (design system app-layout-row handles position) */
+body.tui #app.app-layout-row #controls-area {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  transition: width 0.2s ease;
+}
+
+body.tui #app.app-layout-row #controls-area.collapsed {
+  width: 40px;
+  min-width: 40px;
+}
+
+body.tui #app.app-layout-row #controls-area:not(.collapsed) {
+  width: var(--tui-controls-area-width);
+}
+
+/* Collapsed: vertical tab for "Controls" */
+body.tui #app.app-layout-row #controls-area .controls-area-header {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  justify-content: center;
+  padding: var(--tui-pad-2) var(--tui-pad-1);
+}
+
+body.tui #app.app-layout-row #controls-area:not(.collapsed) .controls-area-header {
+  writing-mode: horizontal-tb;
+  text-align: left;
+  justify-content: flex-start;
+  padding: var(--tui-pad-2);
+}
+
+body.tui #app.app-layout-row #controls-area.collapsed .controls-area-chevron {
+  transform: rotate(180deg);
+}
+
+body.tui .panel-chevron {
+  display: none;
+}
+
+/* Controls content: fixed-height scroll container (no jitter when content changes) */
+body.tui .controls-area-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-gap);
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: scroll; /* always show scrollbar track to prevent width shift */
+  scrollbar-gutter: stable; /* reserve scrollbar space so layout doesn't jump */
+  overflow-anchor: none; /* prevent scroll anchoring from shifting view on DOM updates */
+}
+
+body.tui .controls-panels {
+  flex: 0 0 auto;
+  overflow-y: visible;
+}
+
+/* Floor plan tool / canvas area */
+body.tui .floor-plan-tool-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--tui-bg);
+  background-image:
+    linear-gradient(rgba(55, 55, 55, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(55, 55, 55, 0.35) 1px, transparent 1px),
+    linear-gradient(rgba(85, 85, 85, 0.45) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(85, 85, 85, 0.45) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  background-position: 0 0, 0 0, 0 0, 0 0;
+}
+
+body.tui .floor-plan-controls {
+  display: grid;
+  gap: var(--tui-gap);
+  align-content: start;
+  width: 100%;
+  min-width: 0;
+}
+
+body.tui .floor-plan-controls h2 {
+  margin: 0 0 var(--tui-gap-sm);
+  font-size: 1rem;
+}
+
+body.tui .floor-plan-control {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+body.tui .canvas-size-row {
+  display: flex;
+  gap: var(--tui-gap);
+  width: 100%;
+  margin-bottom: var(--tui-gap);
+}
+
+body.tui .canvas-size-row .floor-plan-control {
+  flex: 1;
+  min-width: 0;
+}
+
+body.tui .floor-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tui-gap-sm);
+  width: 100%;
+  min-width: 0;
+}
+
+body.tui .floor-plan-status-stats {
+  position: fixed;
+  bottom: var(--tui-gap);
+  right: var(--tui-gap);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  z-index: 100;
+}
+
+body.tui .floor-plan-status,
+body.tui .floor-plan-stats {
+  margin: 0;
+  color: var(--tui-muted);
+  font-size: 0.82rem;
+}
+
+body.tui .floor-plan-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 2px solid var(--tui-line-strong);
+  padding: var(--tui-pad-1);
+  background: var(--tui-bg);
+}
+
+body.tui .floor-plan-preview-content {
+  position: relative;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  background-color: var(--tui-bg);
+  background-image:
+    linear-gradient(rgba(51, 51, 51, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(51, 51, 51, 0.35) 1px, transparent 1px),
+    linear-gradient(rgba(74, 110, 150, 0.45) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 110, 150, 0.45) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+}
+
+body.tui .floor-plan-preview-content::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background-image:
+    linear-gradient(rgba(130, 130, 130, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(130, 130, 130, 0.14) 1px, transparent 1px),
+    linear-gradient(rgba(175, 175, 175, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(175, 175, 175, 0.2) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+}
+
+body.tui .color-palette-svg-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.tui .color-palette-svg-wrapper svg {
+  max-width: 100%;
+}
+
+body.tui .color-palette-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-gap-sm);
+}
+
+body.tui .color-palette-list-item {
+  display: flex;
+  align-items: center;
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  border: 2px solid var(--tui-line-strong);
+}
+
+body.tui .color-palette-list-swatch {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 1px solid var(--tui-line-strong);
+}
+
+body.tui .color-palette-picker {
+  width: 32px;
+  height: 28px;
+  padding: 2px;
+  border: 2px solid var(--tui-line-strong);
+  cursor: pointer;
+  flex-shrink: 0;
+  background: transparent;
+}
+
+body.tui .color-palette-picker:hover {
+  border-color: var(--tui-cyan);
+}
+
+body.tui .color-palette-hex {
+  margin-left: var(--tui-gap);
+}
+
+body.tui .floor-plan-preview svg {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: auto;
+  background: var(--tui-bg);
+  display: block;
+  cursor: grab;
+}
+
+body.tui .floor-plan-preview svg.is-panning {
+  cursor: grabbing;
+}
+
+/* Entity list (shapes / layers) */
+body.tui .floor-plan-entity-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: var(--tui-gap-sm);
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: var(--tui-gap-sm);
+}
+
+body.tui .floor-plan-entity-item,
+body.tui .floor-plan-entity-empty {
+  border: 2px solid var(--tui-line-strong);
+  padding: var(--tui-pad-1) var(--tui-pad-2);
+  font-size: 0.82rem;
+  color: var(--tui-fg);
+}
+
+body.tui .floor-plan-entity-item {
+  width: 100%;
+  text-align: left;
+}
+
+body.tui .floor-plan-entity-item.is-selected {
+  border-color: var(--tui-fg);
+  outline: 2px solid var(--tui-fg);
+  outline-offset: 1px;
+}
+
+body.tui .floor-plan-entity-empty {
+  color: var(--tui-muted);
+}
+
+/* Entities tabs (Stamp / Settings / Palette / Background) */
+body.tui .entities-tabs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  min-height: 40px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid var(--tui-line-strong);
+  border-bottom: 0;
+}
+
+body.tui .entities-tab {
+  flex: 0 0 28px;
+  min-width: 28px;
+  padding: var(--tui-pad-2) var(--tui-pad-1);
+  border: 2px solid var(--tui-line-strong);
+  border-bottom: 0;
+  margin: 0 1px -2px 0;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tui-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+body.tui .entities-tab:hover {
+  color: var(--tui-fg);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+body.tui .entities-tab.is-active {
+  flex: 1 1 auto;
+  min-width: 72px;
+  color: var(--tui-fg);
+  background: var(--tui-bg);
+  border-bottom: 2px solid var(--tui-bg);
+  z-index: 2;
+  margin-bottom: -2px;
+}
+
+body.tui .entities-tab-panels {
+  margin-top: 0;
+  height: 280px;
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-anchor: none;
+  border: 2px solid var(--tui-line-strong);
+  border-top: 0;
+  padding: var(--tui-pad-2);
+  background: var(--tui-bg);
+}
+
+body.tui .entities-tab-panel {
+  display: none;
+}
+
+body.tui .entities-tab-panel.is-active {
+  display: block;
+}
+
+/* Mode toolbar (transform / stamp / center) */
+body.tui .mode-toolbar {
+  position: fixed;
+  top: var(--tui-gap);
+  right: var(--tui-gap);
+  display: flex;
+  gap: var(--tui-gap-sm);
+  z-index: 1000;
+}
+
+body.tui .mode-gizmo-btn {
+  width: 40px;
+  height: 40px;
+  padding: var(--tui-pad-1);
+  border: 2px solid var(--tui-line-strong);
+  background: var(--tui-bg);
+  color: var(--tui-muted);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  filter: grayscale(1) brightness(1.3);
+}
+
+body.tui .mode-gizmo-btn:hover {
+  color: var(--tui-fg);
+  border-color: var(--tui-line-strong);
+}
+
+body.tui .mode-gizmo-btn.is-active {
+  color: var(--tui-fg);
+  border-color: var(--tui-fg);
+  outline: 2px solid var(--tui-fg);
+  outline-offset: 2px;
+}
+
+body.tui .bg-type-row .bg-type-btn {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: var(--tui-pad-2) var(--tui-pad-3);
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+/* Shapes panel */
+body.tui #camera-controls {
+  position: static;
+  width: 100%;
+  min-width: 0;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tui-gap);
+}
+
+body.tui #camera-controls > .panel {
+  flex: 0 0 auto;
+  min-width: 0;
+}
