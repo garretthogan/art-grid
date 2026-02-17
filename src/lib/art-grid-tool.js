@@ -522,8 +522,8 @@ export function mountArtGridTool(containerElement) {
     img.src = src
   }
   
-  // Load default sheet on mount
-  loadStampSheet('/stamps.png')
+  // Load default sheet on mount (use base URL for deployed subpath)
+  loadStampSheet(import.meta.env.BASE_URL + 'stamps.png')
   
   uploadInput.addEventListener('change', (e) => {
     const file = e.target.files?.[0]
