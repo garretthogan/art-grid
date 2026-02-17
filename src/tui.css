@@ -45,6 +45,7 @@
   html,
   body {
     height: 100%;
+    overflow: hidden;
   }
   
   body.tui {
@@ -108,7 +109,7 @@
   body.tui .floor-plan-tool-root {
     flex: 1 1 auto;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
     border-bottom: var(--tui-bw) solid var(--tui-line);
     background: #000000;
     background-image:
@@ -136,12 +137,32 @@
     width: 100%;
     min-width: 0;
   }
+  body.tui .canvas-size-row {
+    display: flex;
+    gap: var(--tui-gap);
+    width: 100%;
+    margin-bottom: var(--tui-gap);
+  }
+  body.tui .canvas-size-row .floor-plan-control {
+    flex: 1;
+    min-width: 0;
+  }
   body.tui .floor-plan-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     width: 100%;
     min-width: 0;
+  }
+  body.tui .floor-plan-status-stats {
+    position: fixed;
+    bottom: 8px;
+    right: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    z-index: 100;
   }
   body.tui .floor-plan-status,
   body.tui .floor-plan-stats {
@@ -151,7 +172,7 @@
   }
   body.tui .floor-plan-preview {
     min-height: calc(100vh - 96px);
-    overflow: auto;
+    overflow: hidden;
     border: 2px solid var(--tui-line-strong);
     padding: var(--tui-pad-1);
     background: #000000;
@@ -168,6 +189,51 @@
       linear-gradient(rgba(74, 110, 150, 0.45) 1px, transparent 1px),
       linear-gradient(90deg, rgba(74, 110, 150, 0.45) 1px, transparent 1px);
     background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  }
+  body.tui .color-palette-svg-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  body.tui .color-palette-svg-wrapper svg {
+    max-width: 100%;
+  }
+  body.tui .color-palette-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  body.tui .color-palette-list-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border: 2px solid var(--tui-line-strong);
+  }
+  body.tui .color-palette-list-swatch {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border: 1px solid var(--tui-line-strong);
+  }
+  body.tui .color-palette-picker {
+    width: 32px;
+    height: 28px;
+    padding: 2px;
+    border: 2px solid var(--tui-line-strong);
+    cursor: pointer;
+    flex-shrink: 0;
+    background: transparent;
+  }
+  body.tui .color-palette-picker:hover {
+    border-color: var(--tui-cyan);
+  }
+  body.tui .color-palette-hex {
+    margin-left: 8px;
   }
   body.tui .floor-plan-preview-content::after {
     content: '';
@@ -225,6 +291,82 @@
   }
   body.tui .floor-plan-entity-empty {
     color: var(--tui-muted);
+  }
+  body.tui .entities-tabs {
+    display: flex;
+    gap: 0;
+    padding: 4px 4px 0 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 2px solid var(--tui-line-strong);
+    border-bottom: 0;
+  }
+  body.tui .entities-tab {
+    flex: 1;
+    padding: 8px 12px;
+    border: 2px solid var(--tui-line-strong);
+    border-bottom: 0;
+    margin: 0 2px -2px 0;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--tui-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    position: relative;
+    z-index: 1;
+  }
+  body.tui .entities-tab:hover {
+    color: var(--tui-fg);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  body.tui .entities-tab.is-active {
+    color: var(--tui-fg);
+    background: var(--tui-bg);
+    border-bottom: 2px solid var(--tui-bg);
+    z-index: 2;
+    margin-bottom: -2px;
+  }
+  body.tui .entities-tab-panels {
+    margin-top: 0;
+    min-height: 280px;
+    border: 2px solid var(--tui-line-strong);
+    border-top: 0;
+    padding: 10px;
+    background: var(--tui-bg);
+  }
+  body.tui .entities-tab-panel {
+    display: none;
+  }
+  body.tui .entities-tab-panel.is-active {
+    display: block;
+  }
+  body.tui .mode-toolbar {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 6px;
+    z-index: 1000;
+  }
+  body.tui .mode-gizmo-btn {
+    width: 40px;
+    height: 40px;
+    padding: 6px;
+    border: 2px solid var(--tui-line-strong);
+    background: var(--tui-bg);
+    color: var(--tui-muted);
+    cursor: pointer;
+    font-size: 20px;
+    line-height: 1;
+    filter: grayscale(1) brightness(1.3);
+  }
+  body.tui .mode-gizmo-btn:hover {
+    color: var(--tui-fg);
+    border-color: var(--tui-line-strong);
+  }
+  body.tui .mode-gizmo-btn.is-active {
+    color: var(--tui-fg);
+    border-color: var(--tui-fg);
+    outline: 2px solid var(--tui-fg);
+    outline-offset: 2px;
   }
   
   /* ===== Tools dropdown ===== */
@@ -413,7 +555,7 @@
   body.tui .controls-area-content {
     display: flex;
     flex-direction: column;
-    gap: var(--tui-gap);
+    gap: 4px;
     padding: var(--tui-pad-2);
     overflow-y: auto;
     overflow-x: hidden;
@@ -874,7 +1016,7 @@
   body.tui .controls-panels {
     display: flex;
     flex-direction: column;
-    gap: var(--tui-gap);
+    gap: 4px;
     min-width: 0;
     flex: 1;
     overflow-y: auto;

@@ -20,6 +20,7 @@ function decodeSvgMetadata(svgElement) {
 const MAX_SEED = 4294967295
 const SETTINGS_KEY = 'artGrid.settings'
 const LATEST_SVG_KEY = 'artGrid.latestSvg'
+const DEFAULT_COLORS = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
 
 function createNumberField(labelText, id, value, min, max) {
   const row = document.createElement('label')
@@ -86,6 +87,18 @@ function randomSeed() {
   return Math.max(1, Math.min(MAX_SEED, hashed))
 }
 
+function getExportReadySvg(svgText) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(svgText, 'image/svg+xml')
+  const svg = doc.querySelector('svg')
+  if (!svg) return svgText
+  svg.querySelectorAll('.canvas-boundary, #selection-outlines').forEach((el) => el.remove())
+  // Reset viewBox to full canvas so exported SVG fills the frame (not zoom/pan state)
+  const baseViewBox = svg.getAttribute('data-base-viewbox')
+  if (baseViewBox) svg.setAttribute('viewBox', baseViewBox)
+  return new XMLSerializer().serializeToString(svg)
+}
+
 function downloadSvg(svgText, fileName = `art-grid-${Date.now()}.svg`) {
   const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
   const objectUrl = URL.createObjectURL(blob)
@@ -143,50 +156,252 @@ export function mountArtGridTool(containerElement) {
   let selectedLayer = null
   let dragState = null
   let isGenerating = false
+  let stampMode = false
+  let stampShape = null
+  let stampInvert = false // false = black is shape, true = white is shape
+  let colorPalette = Array.isArray(saved?.colorPalette) && saved.colorPalette.length > 0
+    ? [...saved.colorPalette]
+    : []
 
   const preview = document.createElement('section')
   preview.className = 'floor-plan-preview'
   const previewContent = document.createElement('div')
   previewContent.className = 'floor-plan-preview-content'
+  const svgWrapper = document.createElement('div')
+  svgWrapper.className = 'color-palette-svg-wrapper'
+  previewContent.appendChild(svgWrapper)
   preview.appendChild(previewContent)
   previewContainer.appendChild(preview)
+
+  const getColorsForGeneration = () =>
+    colorPalette.length > 0 ? colorPalette : DEFAULT_COLORS
+  
+  // Click outside SVG to disable stamp mode (setStampMode defined after controls)
+  let setStampMode = null
+  previewContent.addEventListener('click', (e) => {
+    const clickedOnSvg = e.target.closest('svg') || e.target.tagName === 'svg'
+    if (stampMode && !clickedOnSvg && setStampMode) {
+      setStampMode(false)
+      status.textContent = 'Stamp mode disabled (clicked outside canvas).'
+    }
+  })
 
   const controls = document.createElement('div')
   controls.className = 'floor-plan-controls'
   
-  // Create collapsible panel for settings
-  const settingsPanel = document.createElement('div')
-  settingsPanel.className = 'panel'
-  settingsPanel.id = 'settings-panel'
+  // Create consolidated tools panel (Settings + Stamp Tool with tabs)
+  const toolsPanel = document.createElement('div')
+  toolsPanel.className = 'panel'
+  toolsPanel.id = 'tools-panel'
   
-  const settingsHeader = document.createElement('button')
-  settingsHeader.className = 'panel-header'
-  settingsHeader.type = 'button'
-  settingsHeader.innerHTML = '<span class="panel-chevron">▼</span>Settings'
-  settingsHeader.addEventListener('click', () => {
-    settingsPanel.classList.toggle('collapsed')
+  const toolsHeader = document.createElement('button')
+  toolsHeader.className = 'panel-header'
+  toolsHeader.type = 'button'
+  toolsHeader.innerHTML = '<span class="panel-chevron">▼</span>Tools'
+  toolsHeader.addEventListener('click', () => {
+    toolsPanel.classList.toggle('collapsed')
   })
   
   const settingsContent = document.createElement('div')
   settingsContent.className = 'panel-content'
   
   const seed = createNumberField('Seed', 'ag-seed', saved?.seed ?? randomSeed(), 1, MAX_SEED)
+  seed.row.style.display = 'none'
   const width = createNumberField('Canvas Width (px)', 'ag-width', saved?.width ?? 1200, 100, 4000)
   const height = createNumberField('Canvas Height (px)', 'ag-height', saved?.height ?? 2400, 100, 4000)
+  const canvasSizeRow = document.createElement('div')
+  canvasSizeRow.className = 'canvas-size-row'
+  canvasSizeRow.append(width.row, height.row)
   const shapeCount = createRangeField('Shape density', 'ag-shapes', saved?.shapeCount ?? 80, 20, 300)
   const minSize = createRangeField('Min shape size', 'ag-min-size', saved?.minSize ?? 8, 2, 100)
   const maxSize = createRangeField('Max shape size', 'ag-max-size', saved?.maxSize ?? 120, 10, 300)
+  const minTextureScale = createRangeField('Min texture scale', 'ag-min-texture', saved?.minTextureScale ?? 0.5, 0.1, 5, 0.1)
+  const maxTextureScale = createRangeField('Max texture scale', 'ag-max-texture', saved?.maxTextureScale ?? 2, 0.1, 5, 0.1)
 
   settingsContent.append(
     seed.row,
-    width.row,
-    height.row,
+    canvasSizeRow,
     shapeCount.row,
     minSize.row,
-    maxSize.row
+    maxSize.row,
+    minTextureScale.row,
+    maxTextureScale.row
   )
   
-  settingsPanel.append(settingsHeader, settingsContent)
+  // Stamp tool content
+  const stampContent = document.createElement('div')
+  stampContent.className = 'panel-content'
+  
+  // Upload shape sheet
+  const uploadLabel = document.createElement('label')
+  uploadLabel.style.display = 'block'
+  uploadLabel.style.marginBottom = '8px'
+  uploadLabel.textContent = 'Upload Shape Sheet:'
+  const uploadInput = document.createElement('input')
+  uploadInput.type = 'file'
+  uploadInput.accept = 'image/*'
+  uploadInput.style.width = '100%'
+  uploadInput.style.marginBottom = '8px'
+  
+  // Sheet preview canvas
+  const sheetCanvas = document.createElement('canvas')
+  sheetCanvas.style.width = '100%'
+  sheetCanvas.style.border = '2px solid var(--tui-line-strong)'
+  sheetCanvas.style.cursor = 'crosshair'
+  sheetCanvas.style.display = 'none'
+  sheetCanvas.style.imageRendering = 'pixelated'
+  
+  // Stamp controls
+  const stampControls = document.createElement('div')
+  stampControls.style.marginTop = '8px'
+  
+  const invertToggle = document.createElement('label')
+  invertToggle.style.display = 'flex'
+  invertToggle.style.alignItems = 'center'
+  invertToggle.style.gap = '8px'
+  const invertCheckbox = document.createElement('input')
+  invertCheckbox.type = 'checkbox'
+  invertToggle.append(invertCheckbox, 'Invert (white = shape)')
+  
+  const stampPreview = document.createElement('canvas')
+  stampPreview.style.width = '64px'
+  stampPreview.style.height = '64px'
+  stampPreview.style.border = '2px solid var(--tui-line-strong)'
+  stampPreview.style.display = 'none'
+  stampPreview.style.imageRendering = 'pixelated'
+  stampPreview.width = 64
+  stampPreview.height = 64
+  
+  stampControls.append(invertToggle, stampPreview)
+  stampContent.append(uploadLabel, uploadInput, sheetCanvas, stampControls)
+  
+  // Tools tab bar and panels
+  const toolsTabBar = document.createElement('div')
+  toolsTabBar.className = 'entities-tabs'
+  const stampTab = document.createElement('button')
+  stampTab.type = 'button'
+  stampTab.className = 'entities-tab is-active'
+  stampTab.textContent = 'Stamps'
+  stampTab.setAttribute('data-tab', 'stamp')
+  const settingsTab = document.createElement('button')
+  settingsTab.type = 'button'
+  settingsTab.className = 'entities-tab'
+  settingsTab.textContent = 'Settings'
+  settingsTab.setAttribute('data-tab', 'settings')
+  const paletteTab = document.createElement('button')
+  paletteTab.type = 'button'
+  paletteTab.className = 'entities-tab'
+  paletteTab.textContent = 'Colors'
+  paletteTab.setAttribute('data-tab', 'palette')
+  toolsTabBar.append(stampTab, settingsTab, paletteTab)
+  
+  const toolsTabPanels = document.createElement('div')
+  toolsTabPanels.className = 'entities-tab-panels'
+  
+  const stampTabPanel = document.createElement('div')
+  stampTabPanel.className = 'entities-tab-panel is-active'
+  stampTabPanel.setAttribute('data-panel', 'stamp')
+  stampTabPanel.append(stampContent)
+  
+  const settingsTabPanel = document.createElement('div')
+  settingsTabPanel.className = 'entities-tab-panel'
+  settingsTabPanel.setAttribute('data-panel', 'settings')
+  settingsTabPanel.append(settingsContent)
+  
+  const paletteTabPanel = document.createElement('div')
+  paletteTabPanel.className = 'entities-tab-panel'
+  paletteTabPanel.setAttribute('data-panel', 'palette')
+  const paletteContent = document.createElement('div')
+  paletteContent.className = 'panel-content'
+  const paletteListEl = document.createElement('ul')
+  paletteListEl.className = 'color-palette-list'
+  const paletteAddBtn = document.createElement('button')
+  paletteAddBtn.type = 'button'
+  paletteAddBtn.textContent = 'Add color'
+  paletteAddBtn.style.marginTop = '8px'
+  paletteAddBtn.style.width = '100%'
+  const paletteHint = document.createElement('p')
+  paletteHint.className = 'floor-plan-status'
+  paletteHint.style.margin = '8px 0 0'
+  paletteHint.textContent = 'Define colors used when generating shapes. Leave empty to use default colors.'
+  paletteContent.append(paletteListEl, paletteAddBtn, paletteHint)
+  paletteTabPanel.append(paletteContent)
+  
+  function renderPaletteList() {
+    paletteListEl.innerHTML = ''
+    colorPalette.forEach((color, i) => {
+      const li = document.createElement('li')
+      li.className = 'color-palette-list-item'
+      const colorInput = document.createElement('input')
+      colorInput.type = 'color'
+      colorInput.value = color
+      colorInput.className = 'color-palette-picker'
+      const label = document.createElement('span')
+      label.textContent = color
+      label.className = 'color-palette-hex'
+      const deleteBtn = document.createElement('button')
+      deleteBtn.type = 'button'
+      deleteBtn.textContent = 'Delete'
+      deleteBtn.style.marginLeft = 'auto'
+      li.append(colorInput, label, deleteBtn)
+      li.style.cursor = 'pointer'
+      label.style.cursor = 'pointer'
+      li.addEventListener('click', (e) => {
+        if (e.target === deleteBtn) return
+        colorInput.click()
+      })
+      colorInput.addEventListener('input', () => {
+        colorPalette[i] = colorInput.value
+        label.textContent = colorInput.value
+        persistSettings(stats?.textContent ?? '')
+      })
+      colorInput.addEventListener('change', () => {
+        colorPalette[i] = colorInput.value
+        label.textContent = colorInput.value
+        renderPaletteList()
+        persistSettings(stats?.textContent ?? '')
+      })
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        colorPalette.splice(i, 1)
+        renderPaletteList()
+        persistSettings(stats?.textContent ?? '')
+      })
+      paletteListEl.appendChild(li)
+    })
+    if (colorPalette.length === 0) {
+      const empty = document.createElement('li')
+      empty.className = 'floor-plan-entity-empty'
+      empty.textContent = 'No colors. Add colors or leave empty for defaults.'
+      paletteListEl.appendChild(empty)
+    }
+  }
+  paletteAddBtn.addEventListener('click', () => {
+    colorPalette.push('#808080')
+    renderPaletteList()
+    persistSettings(stats?.textContent ?? '')
+  })
+  renderPaletteList()
+  
+  toolsTabPanels.append(stampTabPanel, settingsTabPanel, paletteTabPanel)
+  
+  const toolsContent = document.createElement('div')
+  toolsContent.className = 'panel-content'
+  toolsContent.append(toolsTabBar, toolsTabPanels)
+  
+  const switchToolsTab = (tabId) => {
+    toolsTabBar.querySelectorAll('.entities-tab').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-tab') === tabId)
+    })
+    toolsTabPanels.querySelectorAll('.entities-tab-panel').forEach((panel) => {
+      panel.classList.toggle('is-active', panel.getAttribute('data-panel') === tabId)
+    })
+  }
+  stampTab.addEventListener('click', () => switchToolsTab('stamp'))
+  settingsTab.addEventListener('click', () => switchToolsTab('settings'))
+  paletteTab.addEventListener('click', () => switchToolsTab('palette'))
+  
+  toolsPanel.append(toolsHeader, toolsContent)
 
   const actions = document.createElement('div')
   actions.className = 'floor-plan-actions'
@@ -198,7 +413,7 @@ export function mountArtGridTool(containerElement) {
   const randomizeBtn = document.createElement('button')
   randomizeBtn.type = 'button'
   randomizeBtn.id = 'ag-randomize-seed'
-  randomizeBtn.textContent = 'Randomize Seed'
+  randomizeBtn.textContent = 'Generate'
   const saveBtn = document.createElement('button')
   saveBtn.type = 'button'
   saveBtn.id = 'ag-save-svg'
@@ -213,30 +428,260 @@ export function mountArtGridTool(containerElement) {
   stats.textContent = saved?.statsText ?? ''
   controls.append(
     actions,
-    settingsPanel,
-    status,
-    stats
+    toolsPanel
   )
   controlsContainer.appendChild(controls)
+
+  const app = document.getElementById('app')
+  const statusStatsWrap = document.createElement('div')
+  statusStatsWrap.className = 'floor-plan-status-stats'
+  statusStatsWrap.append(status, stats)
+  if (app) app.appendChild(statusStatsWrap)
+
+  // Mode toolbar (transform = selection, stamp = stamp mode)
+  const modeToolbar = document.createElement('div')
+  modeToolbar.className = 'mode-toolbar'
+  const transformIcon = document.createElement('button')
+  transformIcon.type = 'button'
+  transformIcon.className = 'mode-gizmo-btn is-active'
+  transformIcon.title = 'Selection – Select, drag, rotate, and scale shapes'
+  transformIcon.setAttribute('aria-label', 'Selection mode')
+  transformIcon.textContent = '✊'
+  const stampIcon = document.createElement('button')
+  stampIcon.type = 'button'
+  stampIcon.className = 'mode-gizmo-btn'
+  stampIcon.title = 'Stamp – Place stamp shapes on the canvas'
+  stampIcon.setAttribute('aria-label', 'Stamp mode')
+  stampIcon.textContent = '📌'
+  modeToolbar.append(transformIcon, stampIcon)
+  if (app) app.appendChild(modeToolbar)
+
+  const updateModeUI = () => {
+    transformIcon.classList.toggle('is-active', !stampMode)
+    stampIcon.classList.toggle('is-active', stampMode)
+  }
+  setStampMode = (enabled) => {
+    stampMode = enabled
+    updateModeUI()
+    if (stampMode && stampShape) {
+      status.textContent = 'Stamp mode active. Click on canvas to place shape.'
+    } else if (stampMode) {
+      status.textContent = 'Select a stamp first.'
+    } else {
+      status.textContent = 'Stamp mode disabled.'
+    }
+  }
+  transformIcon.addEventListener('click', () => setStampMode(false))
+  stampIcon.addEventListener('click', () => setStampMode(true))
+
+  // Stamp tool implementation
+  let sheetImage = null
+  let sheetGridCols = 8
+  let sheetGridRows = 5
+  
+  // Load default stamp sheet
+  const loadStampSheet = (src) => {
+    const img = new Image()
+    img.onload = () => {
+      sheetImage = img
+      sheetCanvas.width = img.width
+      sheetCanvas.height = img.height
+      sheetCanvas.style.display = 'block'
+      
+      const ctx = sheetCanvas.getContext('2d')
+      ctx.imageSmoothingEnabled = false
+      ctx.drawImage(img, 0, 0)
+      
+      if (src.includes('stamps.png')) {
+        status.textContent = 'Default stamp sheet loaded. Click a cell to select.'
+      } else {
+        status.textContent = 'Custom stamp sheet loaded. Click a cell to select.'
+      }
+    }
+    img.onerror = () => {
+      if (src.includes('stamps.png')) {
+        console.log('Default stamp sheet not found, upload your own.')
+      }
+    }
+    img.src = src
+  }
+  
+  // Load default sheet on mount
+  loadStampSheet('/stamps.png')
+  
+  uploadInput.addEventListener('change', (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      loadStampSheet(event.target.result)
+    }
+    reader.readAsDataURL(file)
+  })
+  
+  sheetCanvas.addEventListener('click', (e) => {
+    if (!sheetImage) return
+    
+    const rect = sheetCanvas.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    
+    const col = Math.floor(x * sheetGridCols)
+    const row = Math.floor(y * sheetGridRows)
+    
+    if (col < 0 || col >= sheetGridCols || row < 0 || row >= sheetGridRows) return
+    
+    const cellWidth = sheetImage.width / sheetGridCols
+    const cellHeight = sheetImage.height / sheetGridRows
+    
+    // Extract the cell
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = cellWidth
+    tempCanvas.height = cellHeight
+    const tempCtx = tempCanvas.getContext('2d')
+    tempCtx.imageSmoothingEnabled = false
+    tempCtx.drawImage(
+      sheetImage,
+      col * cellWidth, row * cellHeight, cellWidth, cellHeight,
+      0, 0, cellWidth, cellHeight
+    )
+    
+    // Find bounding box of shape pixels (excluding gray grid)
+    const imageData = tempCtx.getImageData(0, 0, cellWidth, cellHeight)
+    const { data, width: w, height: h } = imageData
+    
+    let minX = w, minY = h, maxX = 0, maxY = 0
+    let hasPixels = false
+    
+    const isGridPixel = (r, g, b) => {
+      const brightness = (r + g + b) / 3
+      
+      // Only allow pure black (0-50) or pure white (205-255)
+      // Everything else is considered grid/background
+      const isPureBlack = brightness < 50
+      const isPureWhite = brightness > 205
+      
+      return !isPureBlack && !isPureWhite
+    }
+    
+    for (let py = 0; py < h; py++) {
+      for (let px = 0; px < w; px++) {
+        const i = (py * w + px) * 4
+        const a = data[i + 3]
+        
+        if (a < 10) continue // Skip fully transparent
+        
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        
+        // Skip gray grid pixels
+        if (isGridPixel(r, g, b)) continue
+        
+        const brightness = (r + g + b) / 3
+        const isPureBlack = brightness < 50
+        const isPureWhite = brightness > 205
+        
+        if (!isPureBlack && !isPureWhite) continue // Skip non-shape pixels
+        
+        const isShape = stampInvert ? isPureWhite : isPureBlack
+        
+        if (isShape) {
+          hasPixels = true
+          minX = Math.min(minX, px)
+          minY = Math.min(minY, py)
+          maxX = Math.max(maxX, px)
+          maxY = Math.max(maxY, py)
+        }
+      }
+    }
+    
+    if (!hasPixels) {
+      status.textContent = 'Empty cell selected. Try another one.'
+      return
+    }
+    
+    // Crop to bounding box
+    const cropX = minX
+    const cropY = minY
+    const cropWidth = maxX - minX + 1
+    const cropHeight = maxY - minY + 1
+    
+    const croppedCanvas = document.createElement('canvas')
+    croppedCanvas.width = cropWidth
+    croppedCanvas.height = cropHeight
+    const croppedCtx = croppedCanvas.getContext('2d')
+    croppedCtx.imageSmoothingEnabled = false
+    croppedCtx.drawImage(
+      tempCanvas,
+      cropX, cropY, cropWidth, cropHeight,
+      0, 0, cropWidth, cropHeight
+    )
+    
+    stampShape = {
+      canvas: croppedCanvas,
+      width: cropWidth,
+      height: cropHeight,
+      col,
+      row,
+    }
+    
+    // Show preview
+    stampPreview.style.display = 'block'
+    const previewCtx = stampPreview.getContext('2d')
+    previewCtx.imageSmoothingEnabled = false
+    previewCtx.clearRect(0, 0, 64, 64)
+    previewCtx.fillStyle = '#333'
+    previewCtx.fillRect(0, 0, 64, 64)
+    const scale = Math.min(64 / cropWidth, 64 / cropHeight)
+    const drawWidth = cropWidth * scale
+    const drawHeight = cropHeight * scale
+    const drawX = (64 - drawWidth) / 2
+    const drawY = (64 - drawHeight) / 2
+    previewCtx.drawImage(croppedCanvas, drawX, drawY, drawWidth, drawHeight)
+    
+    status.textContent = `Selected stamp from row ${row + 1}, col ${col + 1}. Stamp mode enabled.`
+    if (setStampMode) setStampMode(true)
+  })
+  
+  invertCheckbox.addEventListener('change', () => {
+    stampInvert = invertCheckbox.checked
+    if (stampShape) {
+      // Update preview
+      const previewCtx = stampPreview.getContext('2d')
+      previewCtx.imageSmoothingEnabled = false
+      previewCtx.clearRect(0, 0, 64, 64)
+      previewCtx.drawImage(stampShape.canvas, 0, 0, 64, 64)
+    }
+  })
 
   const entitiesWrap = document.createElement('div')
   entitiesWrap.className = 'floor-plan-entities'
   
-  // Layer list
-  const layersTitle = document.createElement('h3')
-  layersTitle.textContent = 'Layers'
-  layersTitle.style.margin = '0 0 8px'
-  layersTitle.style.fontSize = '0.9rem'
-  const layersList = document.createElement('ul')
-  layersList.className = 'floor-plan-entity-list'
-  layersList.style.marginBottom = '16px'
+  // Tab bar
+  const tabBar = document.createElement('div')
+  tabBar.className = 'entities-tabs'
+  const shapesTab = document.createElement('button')
+  shapesTab.type = 'button'
+  shapesTab.className = 'entities-tab is-active'
+  shapesTab.textContent = 'Shapes'
+  shapesTab.setAttribute('data-tab', 'shapes')
+  const layersTab = document.createElement('button')
+  layersTab.type = 'button'
+  layersTab.className = 'entities-tab'
+  layersTab.textContent = 'Layers'
+  layersTab.setAttribute('data-tab', 'layers')
+  tabBar.append(shapesTab, layersTab)
   
-  // Shapes list title
-  const shapesTitle = document.createElement('h3')
-  shapesTitle.textContent = 'Shapes'
-  shapesTitle.style.margin = '0 0 8px'
-  shapesTitle.style.fontSize = '0.9rem'
+  // Tab panels container
+  const tabPanels = document.createElement('div')
+  tabPanels.className = 'entities-tab-panels'
   
+  // Shapes panel (default active)
+  const shapesPanel = document.createElement('div')
+  shapesPanel.className = 'entities-tab-panel is-active'
+  shapesPanel.setAttribute('data-panel', 'shapes')
   const entityActions = document.createElement('div')
   entityActions.className = 'floor-plan-actions'
   const deleteEntityBtn = document.createElement('button')
@@ -245,10 +690,100 @@ export function mountArtGridTool(containerElement) {
   entityActions.append(deleteEntityBtn)
   const entitiesList = document.createElement('ul')
   entitiesList.className = 'floor-plan-entity-list'
-  entitiesWrap.append(layersTitle, layersList, shapesTitle, entityActions, entitiesList)
+  shapesPanel.append(entityActions, entitiesList)
+  
+  // Layers panel
+  const layersPanel = document.createElement('div')
+  layersPanel.className = 'entities-tab-panel'
+  layersPanel.setAttribute('data-panel', 'layers')
+  const layersList = document.createElement('ul')
+  layersList.className = 'floor-plan-entity-list'
+  layersPanel.append(layersList)
+  
+  tabPanels.append(shapesPanel, layersPanel)
+  entitiesWrap.append(tabBar, tabPanels)
   entitiesContainer.appendChild(entitiesWrap)
+  
+  // Tab switching
+  const switchTab = (tabId) => {
+    tabBar.querySelectorAll('.entities-tab').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.getAttribute('data-tab') === tabId)
+    })
+    tabPanels.querySelectorAll('.entities-tab-panel').forEach((panel) => {
+      panel.classList.toggle('is-active', panel.getAttribute('data-panel') === tabId)
+    })
+  }
+  shapesTab.addEventListener('click', () => switchTab('shapes'))
+  layersTab.addEventListener('click', () => switchTab('layers'))
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
+
+  function showToast(message) {
+    const toast = document.createElement('div')
+    toast.className = 'toast'
+    toast.textContent = message
+    toast.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);padding:8px 16px;z-index:2000;'
+    document.body.appendChild(toast)
+    setTimeout(() => toast.remove(), 2500)
+  }
+  
+  function bitmapToSvgPath(canvas, invert) {
+    const ctx = canvas.getContext('2d')
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const { data, width, height } = imageData
+    
+    let path = ''
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        const a = data[i + 3]
+        
+        if (a < 10) continue // Skip transparent
+        
+        const brightness = (r + g + b) / 3
+        
+        // Only process pure black or pure white pixels
+        const isPureBlack = brightness < 50
+        const isPureWhite = brightness > 205
+        
+        if (!isPureBlack && !isPureWhite) continue // Skip gray/grid pixels
+        
+        const isShape = invert ? isPureWhite : isPureBlack
+        
+        if (isShape) {
+          path += `M${x},${y}h1v1h-1z`
+        }
+      }
+    }
+    
+    return path
+  }
+  
+  function createStampShape(x, y, stampData, color) {
+    const svgPath = bitmapToSvgPath(stampData.canvas, stampInvert)
+    const scale = 1 // You can adjust this
+    const centerX = stampData.width / 2
+    const centerY = stampData.height / 2
+    
+    return {
+      type: 'stamp',
+      x,
+      y,
+      size: Math.max(stampData.width, stampData.height),
+      color,
+      pattern: 'stamp',
+      rotation: 0,
+      layer: 'stamps',
+      id: `shape-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      stampPath: svgPath,
+      stampWidth: stampData.width,
+      stampHeight: stampData.height,
+    }
+  }
 
   function setGeneratingState(generating) {
     randomizeBtn.disabled = generating
@@ -266,6 +801,9 @@ export function mountArtGridTool(containerElement) {
         shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
         minSize: readBoundedInt(minSize.input, 8, 2, 100),
         maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
+        minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
+        maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
+        colorPalette: [...colorPalette],
         statsText,
       })
     )
@@ -290,7 +828,15 @@ export function mountArtGridTool(containerElement) {
       layerMap.get(layer).push(shape)
     })
     
-    const sortedLayers = Array.from(layerMap.keys()).sort((a, b) => a - b)
+    // Sort layers: numeric layers first (ascending), then string layers (alphabetically)
+    const sortedLayers = Array.from(layerMap.keys()).sort((a, b) => {
+      const aIsNum = typeof a === 'number'
+      const bIsNum = typeof b === 'number'
+      if (aIsNum && bIsNum) return a - b
+      if (aIsNum) return -1
+      if (bIsNum) return 1
+      return String(a).localeCompare(String(b))
+    })
     
     sortedLayers.forEach((layerNum) => {
       const shapes = layerMap.get(layerNum)
@@ -298,7 +844,8 @@ export function mountArtGridTool(containerElement) {
       btn.type = 'button'
       btn.className = 'floor-plan-entity-item'
       if (selectedLayer === layerNum) btn.classList.add('is-selected')
-      btn.textContent = `Layer ${layerNum} (${shapes.length} shapes)`
+      const layerName = typeof layerNum === 'string' ? layerNum : `Layer ${layerNum}`
+      btn.textContent = `${layerName} (${shapes.length} shapes)`
       btn.addEventListener('click', () => {
         selectedLayer = selectedLayer === layerNum ? null : layerNum
         selectedShapeIds.clear()
@@ -323,11 +870,12 @@ export function mountArtGridTool(containerElement) {
     ;(metadata?.shapes ?? []).forEach((shape, index) => {
       const id = shape.id ?? `shape-${index + 1}`
       const layer = shape.layer || 1
+      const layerDisplay = typeof layer === 'string' ? layer : `L${layer}`
       const btn = document.createElement('button')
       btn.type = 'button'
       btn.className = 'floor-plan-entity-item'
       if (selectedShapeIds.has(id)) btn.classList.add('is-selected')
-      btn.textContent = `${shape.type} [L${layer}] (${Number(shape.x).toFixed(0)}, ${Number(shape.y).toFixed(0)})`
+      btn.textContent = `${shape.type} [${layerDisplay}] (${Number(shape.x).toFixed(0)}, ${Number(shape.y).toFixed(0)})`
       btn.addEventListener('click', (e) => {
         if (e.shiftKey) {
           if (selectedShapeIds.has(id)) {
@@ -369,7 +917,6 @@ export function mountArtGridTool(containerElement) {
     if (!outlineGroup) {
       outlineGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
       outlineGroup.id = 'selection-outlines'
-      outlineGroup.style.pointerEvents = 'none'
       svg.appendChild(outlineGroup)
     }
     outlineGroup.innerHTML = ''
@@ -378,17 +925,58 @@ export function mountArtGridTool(containerElement) {
       const shape = metadata.shapes.find(s => s.id === id)
       if (!shape) return
       
-      const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
       const padding = 4
-      outline.setAttribute('x', shape.x - shape.size / 2 - padding)
-      outline.setAttribute('y', shape.y - shape.size / 2 - padding)
-      outline.setAttribute('width', shape.size + padding * 2)
-      outline.setAttribute('height', shape.size + padding * 2)
+      const outlineX = shape.x - shape.size / 2 - padding
+      const outlineY = shape.y - shape.size / 2 - padding
+      const outlineWidth = shape.size + padding * 2
+      const outlineHeight = shape.size + padding * 2
+      
+      const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+      outline.setAttribute('x', outlineX)
+      outline.setAttribute('y', outlineY)
+      outline.setAttribute('width', outlineWidth)
+      outline.setAttribute('height', outlineHeight)
       outline.setAttribute('fill', 'none')
       outline.setAttribute('stroke', '#00ffff')
       outline.setAttribute('stroke-width', '2')
       outline.setAttribute('stroke-dasharray', '4 4')
+      outline.style.pointerEvents = 'none'
       outlineGroup.appendChild(outline)
+      
+      const gizmoRadius = 6
+      
+      // Add rotation gizmo in top right corner
+      const rotateGizmoX = outlineX + outlineWidth
+      const rotateGizmoY = outlineY
+      
+      const rotateGizmo = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+      rotateGizmo.setAttribute('cx', rotateGizmoX)
+      rotateGizmo.setAttribute('cy', rotateGizmoY)
+      rotateGizmo.setAttribute('r', gizmoRadius)
+      rotateGizmo.setAttribute('fill', '#00ffff')
+      rotateGizmo.setAttribute('stroke', '#ffffff')
+      rotateGizmo.setAttribute('stroke-width', '2')
+      rotateGizmo.style.cursor = 'grab'
+      rotateGizmo.style.pointerEvents = 'all'
+      rotateGizmo.setAttribute('data-rotation-gizmo', id)
+      outlineGroup.appendChild(rotateGizmo)
+      
+      // Add scale gizmo in bottom right corner
+      const scaleGizmoX = outlineX + outlineWidth
+      const scaleGizmoY = outlineY + outlineHeight
+      
+      const scaleGizmo = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+      scaleGizmo.setAttribute('x', scaleGizmoX - gizmoRadius)
+      scaleGizmo.setAttribute('y', scaleGizmoY - gizmoRadius)
+      scaleGizmo.setAttribute('width', gizmoRadius * 2)
+      scaleGizmo.setAttribute('height', gizmoRadius * 2)
+      scaleGizmo.setAttribute('fill', '#ffff00')
+      scaleGizmo.setAttribute('stroke', '#ffffff')
+      scaleGizmo.setAttribute('stroke-width', '2')
+      scaleGizmo.style.cursor = 'nwse-resize'
+      scaleGizmo.style.pointerEvents = 'all'
+      scaleGizmo.setAttribute('data-scale-gizmo', id)
+      outlineGroup.appendChild(scaleGizmo)
     })
     
     renderLayerList(metadata)
@@ -423,7 +1011,27 @@ export function mountArtGridTool(containerElement) {
           element.setAttribute('data-layer', shape.layer)
         }
       })
-      persistMetadata(svg, metadata)
+    persistMetadata(svg, metadata)
+    }
+
+    // Add canvas boundary for editor preview only (not exported)
+    if (!svg.querySelector('.canvas-boundary')) {
+      const baseViewBox = readBaseViewBox(svg)
+      if (baseViewBox) {
+        const boundary = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+        boundary.classList.add('canvas-boundary')
+        boundary.setAttribute('x', '1')
+        boundary.setAttribute('y', '1')
+        boundary.setAttribute('width', baseViewBox.width - 2)
+        boundary.setAttribute('height', baseViewBox.height - 2)
+        boundary.setAttribute('fill', 'none')
+        boundary.setAttribute('stroke', '#00ffff')
+        boundary.setAttribute('stroke-width', '4')
+        boundary.setAttribute('stroke-dasharray', '12 8')
+        boundary.setAttribute('opacity', '0.8')
+        boundary.style.pointerEvents = 'none'
+        svg.appendChild(boundary)
+      }
     }
 
     updateSelection()
@@ -475,7 +1083,7 @@ export function mountArtGridTool(containerElement) {
       svg.setAttribute('viewBox', `${nextViewBox.minX} ${nextViewBox.minY} ${nextViewBox.width} ${nextViewBox.height}`)
       const currentViewBoxRaw = svg.getAttribute('viewBox')
       persistMetadata(svg, metadata)
-      previewContent.innerHTML = latestSvg
+      svgWrapper.innerHTML = latestSvg
       const refreshedSvg = previewContent.querySelector('svg')
       if (refreshedSvg && currentViewBoxRaw) {
         refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
@@ -484,6 +1092,107 @@ export function mountArtGridTool(containerElement) {
     }
 
     svg.onpointerdown = (event) => {
+      // Check for rotation gizmo click
+      const rotateGizmo = event.target.closest('[data-rotation-gizmo]')
+      if (rotateGizmo) {
+        const id = rotateGizmo.getAttribute('data-rotation-gizmo')
+        const shape = metadata.shapes.find((entry) => entry.id === id)
+        const point = toSvgCoordinates(event)
+        if (!id || !shape || !point) return
+        
+        const startAngle = Math.atan2(point.y - shape.y, point.x - shape.x) * (180 / Math.PI)
+        
+        dragState = {
+          kind: 'rotate',
+          id,
+          element: rotateGizmo,
+          shapeElement: svg.querySelector(`.art-shape[data-id="${id}"]`),
+          centerX: shape.x,
+          centerY: shape.y,
+          startRotation: shape.rotation,
+          startAngle,
+        }
+        rotateGizmo.setPointerCapture(event.pointerId)
+        rotateGizmo.style.cursor = 'grabbing'
+        event.preventDefault()
+        return
+      }
+      
+      // Check for scale gizmo click
+      const scaleGizmo = event.target.closest('[data-scale-gizmo]')
+      if (scaleGizmo) {
+        const id = scaleGizmo.getAttribute('data-scale-gizmo')
+        const shape = metadata.shapes.find((entry) => entry.id === id)
+        const point = toSvgCoordinates(event)
+        if (!id || !shape || !point) return
+        
+        const startDistance = Math.sqrt(
+          Math.pow(point.x - shape.x, 2) + Math.pow(point.y - shape.y, 2)
+        )
+        
+        dragState = {
+          kind: 'scale',
+          id,
+          element: scaleGizmo,
+          shapeElement: svg.querySelector(`.art-shape[data-id="${id}"]`),
+          centerX: shape.x,
+          centerY: shape.y,
+          startSize: shape.size,
+          startDistance,
+        }
+        scaleGizmo.setPointerCapture(event.pointerId)
+        event.preventDefault()
+        return
+      }
+      
+      // Stamp mode - place stamp on canvas click (unless clicking on existing shape)
+      if (stampMode && !stampShape) {
+        showToast('Select a stamp first')
+        event.preventDefault()
+        return
+      }
+      if (stampMode && stampShape) {
+        const clickedShape = event.target.closest('.art-shape')
+        if (!clickedShape) {
+          const point = toSvgCoordinates(event)
+          if (!point) return
+          
+          const colors = getColorsForGeneration()
+          const randomColor = colors[Math.floor(Math.random() * colors.length)]
+          
+          const newShape = createStampShape(point.x, point.y, stampShape, randomColor)
+          metadata.shapes.push(newShape)
+          
+          const currentViewBoxRaw = svg.getAttribute('viewBox')
+          const grid = {
+            meta: {
+              width: readPositiveInt(width.input, 1200),
+              height: readPositiveInt(height.input, 2400),
+              seed: readPositiveInt(seed.input, Date.now()),
+              shapeCount: metadata.shapes.length,
+            },
+            shapes: metadata.shapes,
+          }
+          
+          latestSvg = renderArtGridSvg(grid)
+          svgWrapper.innerHTML = latestSvg
+          const refreshedSvg = previewContent.querySelector('svg')
+          if (refreshedSvg && currentViewBoxRaw) {
+            refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+          }
+          
+          selectedShapeIds.clear()
+          selectedShapeIds.add(newShape.id)
+          bindSvgInteractions()
+          status.textContent = 'Stamp placed.'
+          event.preventDefault()
+          return
+        }
+        // If stamp mode is on and we clicked an existing shape, don't allow dragging - just return
+        event.preventDefault()
+        return
+      }
+      
       const shapeElement = event.target.closest('.art-shape')
       if (shapeElement) {
         const id = shapeElement.getAttribute('data-id')
@@ -554,6 +1263,70 @@ export function mountArtGridTool(containerElement) {
         )
         return
       }
+      if (dragState.kind === 'rotate') {
+        const point = toSvgCoordinates(event)
+        if (!point) return
+        
+        const currentAngle = Math.atan2(point.y - dragState.centerY, point.x - dragState.centerX) * (180 / Math.PI)
+        const angleDelta = currentAngle - dragState.startAngle
+        const newRotation = (dragState.startRotation + angleDelta) % 360
+        
+        const shape = metadata.shapes.find((entry) => entry.id === dragState.id)
+        if (!shape) return
+        
+        shape.rotation = newRotation
+        const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`
+        dragState.shapeElement.setAttribute('transform', transform)
+        return
+      }
+      if (dragState.kind === 'scale') {
+        const point = toSvgCoordinates(event)
+        if (!point) return
+        
+        const currentDistance = Math.sqrt(
+          Math.pow(point.x - dragState.centerX, 2) + Math.pow(point.y - dragState.centerY, 2)
+        )
+        
+        const scaleFactor = currentDistance / dragState.startDistance
+        const newSize = Math.max(4, dragState.startSize * scaleFactor) // Minimum size of 4
+        
+        const shape = metadata.shapes.find((entry) => entry.id === dragState.id)
+        if (!shape) return
+        
+        shape.size = newSize
+        
+        // Update the shape's visual representation
+        const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`
+        dragState.shapeElement.setAttribute('transform', transform)
+        
+        // Update the shape's size attribute based on type
+        if (shape.type === 'circle') {
+          const circle = dragState.shapeElement.querySelector('circle')
+          if (circle) {
+            circle.setAttribute('r', newSize / 2)
+          }
+        } else if (shape.type === 'stamp') {
+          // For stamps, we need to scale the path transform
+          const path = dragState.shapeElement.querySelector('path')
+          if (path && shape.stampWidth && shape.stampHeight) {
+            const scale = newSize / Math.max(shape.stampWidth, shape.stampHeight)
+            const centerX = shape.stampWidth / 2
+            const centerY = shape.stampHeight / 2
+            path.setAttribute('transform', `translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})`)
+          }
+        } else {
+          // Rectangle
+          const rect = dragState.shapeElement.querySelector('rect')
+          if (rect) {
+            const halfSize = newSize / 2
+            rect.setAttribute('x', -halfSize)
+            rect.setAttribute('y', -halfSize)
+            rect.setAttribute('width', newSize)
+            rect.setAttribute('height', newSize)
+          }
+        }
+        return
+      }
       const point = toSvgCoordinates(event)
       if (!point) return
       if (dragState.kind === 'shape') {
@@ -572,10 +1345,19 @@ export function mountArtGridTool(containerElement) {
       if (!dragState) return
       dragState.element.releasePointerCapture(event.pointerId)
       svg.classList.remove('is-panning')
+      
+      // Reset rotation gizmo cursor if it was being dragged
+      if (dragState.kind === 'rotate') {
+        const gizmo = svg.querySelector(`[data-rotation-gizmo="${dragState.id}"]`)
+        if (gizmo) {
+          gizmo.style.cursor = 'grab'
+        }
+      }
+      
       const currentViewBoxRaw = svg.getAttribute('viewBox')
       dragState = null
       persistMetadata(svg, metadata)
-      previewContent.innerHTML = latestSvg
+      svgWrapper.innerHTML = latestSvg
       const refreshedSvg = previewContent.querySelector('svg')
       if (refreshedSvg && currentViewBoxRaw) {
         refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
@@ -601,21 +1383,31 @@ export function mountArtGridTool(containerElement) {
       shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
       minSize: readBoundedInt(minSize.input, 8, 2, 100),
       maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
+      minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
+      maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
+      colors: getColorsForGeneration(),
     }
     seed.input.value = String(options.seed)
     status.textContent = 'Generating art grid...'
     setGeneratingState(true)
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     try {
-      const previousViewBoxRaw = (() => {
-        const currentSvg = previewContent.querySelector('svg')
-        if (!currentSvg) return null
-        const raw = currentSvg.getAttribute('viewBox')
-        return parseViewBoxFromRaw(raw) ? raw : null
+      const currentSvg = previewContent.querySelector('svg')
+      const previousViewBoxRaw = currentSvg ? (parseViewBoxFromRaw(currentSvg.getAttribute('viewBox')) ? currentSvg.getAttribute('viewBox') : null) : null
+      const existingStampShapes = (() => {
+        if (selectedLayer === 'stamps') return []
+        if (!currentSvg) return []
+        const metadata = decodeSvgMetadata(currentSvg)
+        if (!metadata?.shapes) return []
+        return metadata.shapes.filter((s) => s.layer === 'stamps')
       })()
       const grid = generateArtGrid(options)
+      if (existingStampShapes.length > 0) {
+        grid.shapes.push(...existingStampShapes)
+        grid.meta.shapeCount = grid.shapes.length
+      }
       latestSvg = renderArtGridSvg(grid)
-      previewContent.innerHTML = latestSvg
+      svgWrapper.innerHTML = latestSvg
       const generatedSvg = previewContent.querySelector('svg')
       if (generatedSvg && previousViewBoxRaw) {
         generatedSvg.setAttribute('viewBox', previousViewBoxRaw)
@@ -660,7 +1452,7 @@ export function mountArtGridTool(containerElement) {
         shapes: metadata.shapes,
       }
       latestSvg = renderArtGridSvg(grid)
-      previewContent.innerHTML = latestSvg
+      svgWrapper.innerHTML = latestSvg
       const refreshedSvg = previewContent.querySelector('svg')
       if (refreshedSvg && currentViewBoxRaw) {
         refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
@@ -713,7 +1505,9 @@ export function mountArtGridTool(containerElement) {
       
       const minSz = readBoundedInt(minSize.input, 8, 2, 100)
       const maxSz = readBoundedInt(maxSize.input, 120, 10, 300)
-      const colors = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
+      const minTexScale = parseFloat(minTextureScale.input.value) || 0.5
+      const maxTexScale = parseFloat(maxTextureScale.input.value) || 2
+      const colors = getColorsForGeneration()
       const patterns = ['solid', 'hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes']
       
       const newLayerShapes = layerShapes.map(oldShape => {
@@ -726,6 +1520,7 @@ export function mountArtGridTool(containerElement) {
         const maxY = canvasHeight - halfSize
         const x = minX + rng() * (maxX - minX)
         const y = minY + rng() * (maxY - minY)
+        const textureScale = minTexScale + rng() * (maxTexScale - minTexScale)
         
         return {
           ...oldShape,
@@ -736,6 +1531,7 @@ export function mountArtGridTool(containerElement) {
           color: randomChoice(colors),
           pattern: randomChoice(patterns),
           rotation: rng() * 360,
+          textureScale,
         }
       })
       
@@ -752,7 +1548,7 @@ export function mountArtGridTool(containerElement) {
       }
       
       latestSvg = renderArtGridSvg(grid)
-      previewContent.innerHTML = latestSvg
+      svgWrapper.innerHTML = latestSvg
       const refreshedSvg = previewContent.querySelector('svg')
       if (refreshedSvg && currentViewBoxRaw) {
         refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
@@ -774,14 +1570,14 @@ export function mountArtGridTool(containerElement) {
       status.textContent = 'Generate an art grid before saving.'
       return
     }
-    downloadSvg(latestSvg)
+    downloadSvg(getExportReadySvg(latestSvg))
     status.textContent = 'SVG downloaded.'
   })
 
   const savedSvg = window.localStorage.getItem(LATEST_SVG_KEY)
   if (savedSvg) {
     latestSvg = savedSvg
-    previewContent.innerHTML = latestSvg
+    svgWrapper.innerHTML = latestSvg
     const loadedSvg = previewContent.querySelector('svg')
     if (loadedSvg) {
       // Check if SVG has the art-shape classes needed for interaction

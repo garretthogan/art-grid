@@ -9,6 +9,8 @@ const DEFAULT_OPTIONS = {
   seed: Date.now(),
   minSize: 8,
   maxSize: 120,
+  minTextureScale: 0.5,
+  maxTextureScale: 2,
   patterns: ['solid', 'hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes'],
   colors: ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff'],
 };
@@ -53,6 +55,11 @@ function generateShape(rng, options, bounds) {
   // Assign to a random layer (1-5)
   const layer = randomInt(rng, 1, 5);
   
+  // Random texture scale
+  const minTexScale = options.minTextureScale ?? 0.5;
+  const maxTexScale = options.maxTextureScale ?? 2;
+  const textureScale = minTexScale + rng() * (maxTexScale - minTexScale);
+  
   return {
     type: shapeType,
     x,
@@ -62,6 +69,7 @@ function generateShape(rng, options, bounds) {
     pattern,
     rotation,
     layer,
+    textureScale,
     id: `shape-${Math.floor(rng() * 1000000)}`,
   };
 }
@@ -80,11 +88,10 @@ export function generateArtGrid(userOptions = {}) {
     shapes.push(generateShape(rng, options, bounds));
   }
   
-  // Add some small decorative elements
+  // Add some additional decorative elements (using the same size range as main shapes)
   const decorativeCount = Math.floor(options.shapeCount * 0.3);
   for (let i = 0; i < decorativeCount; i++) {
-    const smallShape = generateShape(rng, { ...options, minSize: 2, maxSize: 12 }, bounds);
-    shapes.push(smallShape);
+    shapes.push(generateShape(rng, options, bounds));
   }
   
   return {
@@ -103,8 +110,9 @@ function encodePlanMetadata(metadata) {
 }
 
 function createPatternDef(shape, id) {
-  const patternSize = 4;
-  const strokeWidth = 0.5;
+  const textureScale = shape.textureScale ?? 1;
+  const patternSize = 4 * textureScale;
+  const strokeWidth = 0.5 * textureScale;
   
   switch (shape.pattern) {
     case 'hatch':
@@ -121,7 +129,7 @@ function createPatternDef(shape, id) {
     case 'dots':
       return `
 <pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse">
-  <circle cx="${patternSize / 2}" cy="${patternSize / 2}" r="0.8" fill="${shape.color}" />
+  <circle cx="${patternSize / 2}" cy="${patternSize / 2}" r="${0.8 * textureScale}" fill="${shape.color}" />
 </pattern>`;
     case 'checkerboard':
       return `
@@ -147,6 +155,17 @@ function renderShape(shape, index) {
   
   const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`;
   const layer = shape.layer || 1;
+  
+  // Handle stamp shapes
+  if (shape.type === 'stamp' && shape.stampPath) {
+    const scale = shape.size / Math.max(shape.stampWidth, shape.stampHeight)
+    const centerX = shape.stampWidth / 2
+    const centerY = shape.stampHeight / 2
+    return `
+<g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
+  <path d="${shape.stampPath}" fill="${shape.color}" stroke="none" shape-rendering="crispEdges" transform="translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})" />
+</g>`;
+  }
   
   if (shape.type === 'circle') {
     return `
@@ -186,6 +205,12 @@ export function renderArtGridSvg(grid, options = {}) {
       pattern: shape.pattern,
       rotation: shape.rotation,
       layer: shape.layer || 1,
+      textureScale: shape.textureScale ?? 1,
+      ...(shape.type === 'stamp' && {
+        stampPath: shape.stampPath,
+        stampWidth: shape.stampWidth,
+        stampHeight: shape.stampHeight,
+      }),
     })),
   });
   
