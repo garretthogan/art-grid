@@ -438,7 +438,7 @@ export function mountArtGridTool(containerElement) {
   statusStatsWrap.append(status, stats)
   if (app) app.appendChild(statusStatsWrap)
 
-  // Mode toolbar (transform = selection, stamp = stamp mode)
+  // Mode toolbar (transform = selection, stamp = stamp mode, center camera)
   const modeToolbar = document.createElement('div')
   modeToolbar.className = 'mode-toolbar'
   const transformIcon = document.createElement('button')
@@ -453,7 +453,13 @@ export function mountArtGridTool(containerElement) {
   stampIcon.title = 'Stamp – Place stamp shapes on the canvas'
   stampIcon.setAttribute('aria-label', 'Stamp mode')
   stampIcon.textContent = '📌'
-  modeToolbar.append(transformIcon, stampIcon)
+  const centerCameraBtn = document.createElement('button')
+  centerCameraBtn.type = 'button'
+  centerCameraBtn.className = 'mode-gizmo-btn'
+  centerCameraBtn.title = 'Center view – Reset camera to show full canvas'
+  centerCameraBtn.setAttribute('aria-label', 'Center camera on canvas')
+  centerCameraBtn.textContent = '📍'
+  modeToolbar.append(transformIcon, stampIcon, centerCameraBtn)
   if (app) app.appendChild(modeToolbar)
 
   const updateModeUI = () => {
@@ -473,6 +479,16 @@ export function mountArtGridTool(containerElement) {
   }
   transformIcon.addEventListener('click', () => setStampMode(false))
   stampIcon.addEventListener('click', () => setStampMode(true))
+
+  centerCameraBtn.addEventListener('click', () => {
+    const svg = previewContent.querySelector('svg')
+    if (!svg) return
+    const baseViewBox = svg.getAttribute('data-base-viewbox')
+    if (!baseViewBox) return
+    const metadata = decodeSvgMetadata(svg)
+    svg.setAttribute('viewBox', baseViewBox)
+    if (metadata) persistMetadata(svg, metadata)
+  })
 
   // Stamp tool implementation
   let sheetImage = null
@@ -1018,16 +1034,22 @@ export function mountArtGridTool(containerElement) {
     if (!svg.querySelector('.canvas-boundary')) {
       const baseViewBox = readBaseViewBox(svg)
       if (baseViewBox) {
+        const refSize = 1200
+        const canvasSize = Math.min(baseViewBox.width, baseViewBox.height)
+        const scale = canvasSize / refSize
+        const strokeWidth = Math.max(0.5, 4 * scale)
+        const dashLen = Math.max(2, 12 * scale)
+        const gapLen = Math.max(2, 8 * scale)
         const boundary = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
         boundary.classList.add('canvas-boundary')
-        boundary.setAttribute('x', '1')
-        boundary.setAttribute('y', '1')
-        boundary.setAttribute('width', baseViewBox.width - 2)
-        boundary.setAttribute('height', baseViewBox.height - 2)
+        boundary.setAttribute('x', String(strokeWidth / 2))
+        boundary.setAttribute('y', String(strokeWidth / 2))
+        boundary.setAttribute('width', baseViewBox.width - strokeWidth)
+        boundary.setAttribute('height', baseViewBox.height - strokeWidth)
         boundary.setAttribute('fill', 'none')
         boundary.setAttribute('stroke', '#00ffff')
-        boundary.setAttribute('stroke-width', '4')
-        boundary.setAttribute('stroke-dasharray', '12 8')
+        boundary.setAttribute('stroke-width', String(strokeWidth))
+        boundary.setAttribute('stroke-dasharray', `${dashLen} ${gapLen}`)
         boundary.setAttribute('opacity', '0.8')
         boundary.style.pointerEvents = 'none'
         svg.appendChild(boundary)
