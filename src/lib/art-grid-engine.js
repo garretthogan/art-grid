@@ -11,6 +11,7 @@ const DEFAULT_OPTIONS = {
   maxSize: 120,
   minTextureScale: 0.5,
   maxTextureScale: 2,
+  randomRotation: true,
   patterns: ['solid', 'hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes'],
   colors: ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff'],
 };
@@ -50,7 +51,7 @@ function generateShape(rng, options, bounds) {
   
   const color = randomChoice(rng, options.colors);
   const pattern = randomChoice(rng, options.patterns);
-  const rotation = rng() * 360;
+  const rotation = options.randomRotation !== false ? rng() * 360 : 0;
   
   // Assign to a random layer (1-5)
   const layer = randomInt(rng, 1, 5);
@@ -109,6 +110,41 @@ function encodePlanMetadata(metadata) {
   return btoa(encodeURIComponent(JSON.stringify(metadata)));
 }
 
+export const PATTERNS = ['hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes'];
+
+function createBackgroundPatternDef(background, id) {
+  const { color, textureType, pattern, textureScale = 1 } = background;
+  if (textureType === 'solid' || !pattern) return '';
+  const scale = textureScale ?? 1;
+  const patternSize = 4 * scale;
+  const strokeWidth = 0.5 * scale;
+  if (pattern === 'hatch') {
+    return `<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="${patternSize}" stroke="${color}" stroke-width="${strokeWidth}" /></pattern>`;
+  }
+  if (pattern === 'cross-hatch') {
+    return `<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse"><line x1="0" y1="0" x2="${patternSize}" y2="${patternSize}" stroke="${color}" stroke-width="${strokeWidth}" /><line x1="${patternSize}" y1="0" x2="0" y2="${patternSize}" stroke="${color}" stroke-width="${strokeWidth}" /></pattern>`;
+  }
+  if (pattern === 'dots') {
+    return `<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse"><circle cx="${patternSize / 2}" cy="${patternSize / 2}" r="${0.8 * scale}" fill="${color}" /></pattern>`;
+  }
+  if (pattern === 'checkerboard') {
+    return `<pattern id="${id}" width="${patternSize * 2}" height="${patternSize * 2}" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="${patternSize}" height="${patternSize}" fill="${color}" /><rect x="${patternSize}" y="${patternSize}" width="${patternSize}" height="${patternSize}" fill="${color}" /></pattern>`;
+  }
+  if (pattern === 'stripes') {
+    return `<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="${patternSize / 2}" height="${patternSize}" fill="${color}" /></pattern>`;
+  }
+  return '';
+}
+
+function createBackgroundStampPatternDef(background, id, width, height) {
+  const { stampPath, stampWidth, stampHeight, color, textureScale = 1 } = background;
+  if (!stampPath || !stampWidth || !stampHeight) return '';
+  const scale = textureScale ?? 1;
+  const cellW = stampWidth * scale;
+  const cellH = stampHeight * scale;
+  return `<pattern id="${id}" width="${cellW}" height="${cellH}" patternUnits="userSpaceOnUse"><g transform="scale(${scale})"><path d="${stampPath}" fill="${color}" stroke="none" shape-rendering="crispEdges" /></g></pattern>`;
+}
+
 function createPatternDef(shape, id) {
   const textureScale = shape.textureScale ?? 1;
   const patternSize = 4 * textureScale;
@@ -155,7 +191,9 @@ function renderShape(shape, index) {
   
   const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`;
   const layer = shape.layer || 1;
-  
+  const halfSize = shape.size / 2;
+  const hitArea = `<rect class="art-shape-hit-area" x="${-halfSize}" y="${-halfSize}" width="${shape.size}" height="${shape.size}" fill="white" fill-opacity="0.001" pointer-events="all" />`;
+
   // Handle stamp shapes
   if (shape.type === 'stamp' && shape.stampPath) {
     const scale = shape.size / Math.max(shape.stampWidth, shape.stampHeight)
@@ -163,6 +201,7 @@ function renderShape(shape, index) {
     const centerY = shape.stampHeight / 2
     return `
 <g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
+  ${hitArea}
   <path d="${shape.stampPath}" fill="${shape.color}" stroke="none" shape-rendering="crispEdges" transform="translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})" />
 </g>`;
   }
@@ -170,12 +209,13 @@ function renderShape(shape, index) {
   if (shape.type === 'circle') {
     return `
 <g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
+  ${hitArea}
   <circle cx="0" cy="0" r="${shape.size / 2}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke" />
 </g>`;
   } else {
-    const halfSize = shape.size / 2;
     return `
 <g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
+  ${hitArea}
   <rect x="${-halfSize}" y="${-halfSize}" width="${shape.size}" height="${shape.size}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" vector-effect="non-scaling-stroke" />
 </g>`;
   }
@@ -184,17 +224,29 @@ function renderShape(shape, index) {
 export function renderArtGridSvg(grid, options = {}) {
   const width = grid.meta.width;
   const height = grid.meta.height;
-  
+  const background = grid.background ?? { color: '#000000', textureType: 'solid' };
+
   const patterns = grid.shapes
     .map((shape, index) => createPatternDef(shape, `pattern-${index}`))
     .join('');
-  
+
+  let bgPatternDef = '';
+  let bgFill = background.color || '#000000';
+  if (background.textureType === 'pattern' && background.pattern) {
+    bgPatternDef = createBackgroundPatternDef(background, 'bg-pattern');
+    bgFill = 'url(#bg-pattern)';
+  } else if (background.textureType === 'stamp' && background.stampPath) {
+    bgPatternDef = createBackgroundStampPatternDef(background, 'bg-stamp', width, height);
+    bgFill = 'url(#bg-stamp)';
+  }
+
   const shapes = grid.shapes
     .map((shape, index) => renderShape(shape, index))
     .join('');
   
   const metadata = encodePlanMetadata({
     seed: Number(grid.meta.seed),
+    background,
     shapes: grid.shapes.map((shape) => ({
       id: shape.id,
       type: shape.type,
@@ -220,6 +272,7 @@ export function renderArtGridSvg(grid, options = {}) {
   <desc>Geometric art composition generated with seed ${grid.meta.seed}</desc>
   <metadata id="occult-floorplan-meta">${metadata}</metadata>
   <defs>
+    ${bgPatternDef}
     ${patterns}
     <clipPath id="canvas-clip">
       <rect x="0" y="0" width="${width}" height="${height}" />
@@ -229,7 +282,7 @@ export function renderArtGridSvg(grid, options = {}) {
     .art-shape { cursor: grab; }
     .art-shape.is-selected { filter: brightness(1.5); }
   </style>
-  <rect x="0" y="0" width="${width}" height="${height}" fill="#000000" />
+  <rect class="bg" x="0" y="0" width="${width}" height="${height}" fill="${bgFill}" />
   <g clip-path="url(#canvas-clip)">
     ${shapes}
   </g>

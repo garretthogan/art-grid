@@ -1,4 +1,4 @@
-import { generateArtGrid, renderArtGridSvg } from './art-grid-engine.js'
+import { generateArtGrid, renderArtGridSvg, PATTERNS } from './art-grid-engine.js'
 
 function encodeSvgMetadata(metadata) {
   return btoa(encodeURIComponent(JSON.stringify(metadata)))
@@ -92,7 +92,7 @@ function getExportReadySvg(svgText) {
   const doc = parser.parseFromString(svgText, 'image/svg+xml')
   const svg = doc.querySelector('svg')
   if (!svg) return svgText
-  svg.querySelectorAll('.canvas-boundary, #selection-outlines').forEach((el) => el.remove())
+  svg.querySelectorAll('.canvas-boundary, #selection-outlines, .art-shape-hit-area, .hover-outline, #stamp-preview').forEach((el) => el.remove())
   // Reset viewBox to full canvas so exported SVG fills the frame (not zoom/pan state)
   const baseViewBox = svg.getAttribute('data-base-viewbox')
   if (baseViewBox) svg.setAttribute('viewBox', baseViewBox)
@@ -162,6 +162,17 @@ export function mountArtGridTool(containerElement) {
   let colorPalette = Array.isArray(saved?.colorPalette) && saved.colorPalette.length > 0
     ? [...saved.colorPalette]
     : []
+  let background = {
+    color: saved?.background?.color ?? '#000000',
+    textureType: saved?.background?.textureType ?? 'solid',
+    pattern: saved?.background?.pattern ?? 'dots',
+    textureScale: saved?.background?.textureScale ?? 1,
+    ...(saved?.background?.stampPath && {
+      stampPath: saved.background.stampPath,
+      stampWidth: saved.background.stampWidth,
+      stampHeight: saved.background.stampHeight,
+    }),
+  }
 
   const preview = document.createElement('section')
   preview.className = 'floor-plan-preview'
@@ -177,9 +188,56 @@ export function mountArtGridTool(containerElement) {
     colorPalette.length > 0 ? colorPalette : DEFAULT_COLORS
   
   // Click outside SVG to disable stamp mode (setStampMode defined after controls)
+  // Also handle stamp placement here so clicks register reliably (svg pointerdown can be blocked by overlays)
   let setStampMode = null
   previewContent.addEventListener('click', (e) => {
+    const svg = previewContent.querySelector('svg')
     const clickedOnSvg = e.target.closest('svg') || e.target.tagName === 'svg'
+
+    // Stamp placement: handle at previewContent level so we always receive the click
+    // Allow placing on top of other shapes (no clickedShape check)
+    if (stampMode && stampShape && svg) {
+      const ctm = svg.getScreenCTM()
+      if (ctm) {
+        const pt = svg.createSVGPoint()
+          pt.x = e.clientX
+          pt.y = e.clientY
+          const svgPoint = pt.matrixTransform(ctm.inverse())
+          const baseViewBox = readBaseViewBox(svg)
+          if (baseViewBox && svgPoint.x >= 0 && svgPoint.x <= baseViewBox.width && svgPoint.y >= 0 && svgPoint.y <= baseViewBox.height) {
+            const metadata = decodeSvgMetadata(svg)
+            if (metadata) {
+              const colors = getColorsForGeneration()
+              const randomColor = colors[Math.floor(Math.random() * colors.length)]
+              const newShape = createStampShape(svgPoint.x, svgPoint.y, stampShape, randomColor)
+              metadata.shapes.push(newShape)
+              const currentViewBoxRaw = svg.getAttribute('viewBox')
+              const grid = {
+                meta: {
+                  width: readPositiveInt(width.input, 1200),
+                  height: readPositiveInt(height.input, 2400),
+                  seed: readPositiveInt(seed.input, Date.now()),
+                  shapeCount: metadata.shapes.length,
+                },
+                shapes: metadata.shapes,
+                background: getBackground(),
+              }
+              latestSvg = renderArtGridSvg(grid)
+              svgWrapper.innerHTML = latestSvg
+              const refreshedSvg = previewContent.querySelector('svg')
+              if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+              selectedShapeIds.clear()
+              selectedShapeIds.add(newShape.id)
+              bindSvgInteractions()
+              status.textContent = 'Stamp placed.'
+              e.stopPropagation()
+              e.preventDefault()
+              return
+            }
+          }
+        }
+    }
+
     if (stampMode && !clickedOnSvg && setStampMode) {
       setStampMode(false)
       status.textContent = 'Stamp mode disabled (clicked outside canvas).'
@@ -217,6 +275,175 @@ export function mountArtGridTool(containerElement) {
   const maxSize = createRangeField('Max shape size', 'ag-max-size', saved?.maxSize ?? 120, 10, 300)
   const minTextureScale = createRangeField('Min texture scale', 'ag-min-texture', saved?.minTextureScale ?? 0.5, 0.1, 5, 0.1)
   const maxTextureScale = createRangeField('Max texture scale', 'ag-max-texture', saved?.maxTextureScale ?? 2, 0.1, 5, 0.1)
+  const randomRotationLabel = document.createElement('label')
+  randomRotationLabel.className = 'floor-plan-control'
+  randomRotationLabel.style.display = 'flex'
+  randomRotationLabel.style.alignItems = 'center'
+  randomRotationLabel.style.gap = '8px'
+  randomRotationLabel.style.cursor = 'pointer'
+  const randomRotationCheckbox = document.createElement('input')
+  randomRotationCheckbox.type = 'checkbox'
+  randomRotationCheckbox.id = 'ag-random-rotation'
+  randomRotationCheckbox.checked = saved?.randomRotation !== false
+  randomRotationLabel.append(randomRotationCheckbox, document.createTextNode('Random rotation'))
+  randomRotationLabel.setAttribute('for', 'ag-random-rotation')
+
+  // Background layer controls (own tab)
+  const bgSection = document.createElement('div')
+  bgSection.className = 'floor-plan-control'
+  const bgLabel = document.createElement('div')
+  bgLabel.textContent = 'Background'
+  bgLabel.style.marginBottom = '8px'
+  bgLabel.style.fontWeight = 'bold'
+  const bgColorRow = document.createElement('label')
+  bgColorRow.className = 'floor-plan-control'
+  bgColorRow.style.display = 'flex'
+  bgColorRow.style.alignItems = 'center'
+  bgColorRow.style.gap = '8px'
+  bgColorRow.innerHTML = '<span>Color:</span>'
+  const bgColorInput = document.createElement('input')
+  bgColorInput.type = 'color'
+  bgColorInput.value = background.color
+  bgColorInput.style.width = '48px'
+  bgColorInput.style.height = '28px'
+  bgColorInput.style.padding = '2px'
+  bgColorInput.style.cursor = 'pointer'
+  bgColorRow.appendChild(bgColorInput)
+  const bgTypeRow = document.createElement('div')
+  bgTypeRow.className = 'bg-type-row'
+  bgTypeRow.style.display = 'flex'
+  bgTypeRow.style.flexDirection = 'column'
+  bgTypeRow.style.gap = '6px'
+  bgTypeRow.style.marginTop = '6px'
+  const bgTypeSolid = document.createElement('button')
+  bgTypeSolid.type = 'button'
+  bgTypeSolid.className = 'mode-gizmo-btn bg-type-btn'
+  bgTypeSolid.textContent = 'Solid'
+  bgTypeSolid.title = 'Solid color background'
+  const bgTypePattern = document.createElement('button')
+  bgTypePattern.type = 'button'
+  bgTypePattern.className = 'mode-gizmo-btn bg-type-btn'
+  bgTypePattern.textContent = 'Pattern'
+  bgTypePattern.title = 'Texture pattern background'
+  const bgTypeStamp = document.createElement('button')
+  bgTypeStamp.type = 'button'
+  bgTypeStamp.className = 'mode-gizmo-btn bg-type-btn'
+  bgTypeStamp.textContent = 'Stamp'
+  bgTypeStamp.title = 'Use selected stamp as tiled background'
+  bgTypeRow.append(bgTypeSolid, bgTypePattern, bgTypeStamp)
+  const bgPatternRow = document.createElement('div')
+  bgPatternRow.style.display = 'none'
+  bgPatternRow.style.marginTop = '6px'
+  bgPatternRow.style.gap = '6px'
+  bgPatternRow.style.flexWrap = 'wrap'
+  bgPatternRow.style.alignItems = 'center'
+  const bgRandomBtn = document.createElement('button')
+  bgRandomBtn.type = 'button'
+  bgRandomBtn.className = 'button'
+  bgRandomBtn.textContent = 'Randomize pattern'
+  bgRandomBtn.style.marginRight = '8px'
+  const bgPatternSelect = document.createElement('select')
+  PATTERNS.forEach((p) => {
+    const opt = document.createElement('option')
+    opt.value = p
+    opt.textContent = p.charAt(0).toUpperCase() + p.slice(1)
+    bgPatternSelect.appendChild(opt)
+  })
+  bgPatternSelect.value = background.pattern
+  bgPatternRow.append(bgRandomBtn, bgPatternSelect)
+  const bgTextureScaleRow = createRangeField('Texture scale', 'ag-bg-texture-scale', background.textureScale ?? 1, 0.2, 5, 0.1)
+  bgTextureScaleRow.row.style.marginTop = '8px'
+  bgTextureScaleRow.row.style.display = 'none'
+  bgTextureScaleRow.input.addEventListener('input', () => {
+    background.textureScale = parseFloat(bgTextureScaleRow.input.value) || 1
+    bgTextureScaleRow.row.querySelector('strong').textContent = bgTextureScaleRow.input.value
+    applyBackground()
+  })
+  const bgStampRow = document.createElement('div')
+  bgStampRow.style.display = 'none'
+  bgStampRow.style.marginTop = '6px'
+  const bgUseStampBtn = document.createElement('button')
+  bgUseStampBtn.type = 'button'
+  bgUseStampBtn.className = 'button'
+  bgUseStampBtn.textContent = 'Use selected stamp'
+  bgStampRow.appendChild(bgUseStampBtn)
+  const updateBgTypeUI = () => {
+    bgTypeSolid.classList.toggle('is-active', background.textureType === 'solid')
+    bgTypePattern.classList.toggle('is-active', background.textureType === 'pattern')
+    bgTypeStamp.classList.toggle('is-active', background.textureType === 'stamp')
+    const showPattern = background.textureType === 'pattern'
+    const showStamp = background.textureType === 'stamp'
+    bgPatternRow.style.display = showPattern ? 'flex' : 'none'
+    bgPatternRow.style.flexDirection = 'column'
+    bgTextureScaleRow.row.style.display = showPattern || showStamp ? 'block' : 'none'
+    bgStampRow.style.display = showStamp ? 'block' : 'none'
+  }
+  updateBgTypeUI()
+  bgColorInput.addEventListener('input', () => {
+    background.color = bgColorInput.value
+    applyBackground()
+  })
+  bgTypeSolid.addEventListener('click', () => { background.textureType = 'solid'; updateBgTypeUI(); applyBackground() })
+  bgTypePattern.addEventListener('click', () => {
+    background.textureType = 'pattern'
+    background.pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)]
+    const colors = getColorsForGeneration()
+    if (!background.color && colors.length > 0) {
+      background.color = colors[Math.floor(Math.random() * colors.length)]
+      bgColorInput.value = background.color
+    }
+    bgPatternSelect.value = background.pattern
+    updateBgTypeUI()
+    applyBackground()
+  })
+  bgTypeStamp.addEventListener('click', () => { background.textureType = 'stamp'; updateBgTypeUI(); applyBackground() })
+  bgPatternSelect.addEventListener('change', () => { background.pattern = bgPatternSelect.value; applyBackground() })
+  bgRandomBtn.addEventListener('click', () => {
+    background.pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)]
+    bgPatternSelect.value = background.pattern
+    const colors = getColorsForGeneration()
+    background.color = colors[Math.floor(Math.random() * colors.length)]
+    bgColorInput.value = background.color
+    applyBackground()
+  })
+  bgUseStampBtn.addEventListener('click', () => {
+    if (!stampShape) {
+      showToast('Select a stamp first')
+      return
+    }
+    const svgPath = bitmapToSvgPath(stampShape.canvas, stampInvert)
+    background.stampPath = svgPath
+    background.stampWidth = stampShape.width
+    background.stampHeight = stampShape.height
+    background.color = getColorsForGeneration()[0]
+    bgColorInput.value = background.color
+    applyBackground()
+    showToast('Stamp set as background')
+  })
+  bgSection.append(bgLabel, bgColorRow, bgTypeRow, bgPatternRow, bgTextureScaleRow.row, bgStampRow)
+
+  const getBackground = () => ({ ...background })
+  function applyBackground() {
+    const svg = previewContent.querySelector('svg')
+    if (!svg) return
+    const metadata = decodeSvgMetadata(svg)
+    if (!metadata) return
+    const baseViewBox = readBaseViewBox(svg)
+    const w = baseViewBox ? baseViewBox.width : readPositiveInt(width.input, 1200)
+    const h = baseViewBox ? baseViewBox.height : readPositiveInt(height.input, 2400)
+    metadata.background = getBackground()
+    const grid = {
+      meta: { width: w, height: h, seed: metadata.seed ?? readPositiveInt(seed.input, Date.now()), shapeCount: metadata.shapes.length },
+      shapes: metadata.shapes,
+      background: getBackground(),
+    }
+    const currentViewBoxRaw = svg.getAttribute('viewBox')
+    latestSvg = renderArtGridSvg(grid)
+    svgWrapper.innerHTML = latestSvg
+    const refreshedSvg = previewContent.querySelector('svg')
+    if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+    bindSvgInteractions()
+  }
 
   settingsContent.append(
     seed.row,
@@ -225,7 +452,8 @@ export function mountArtGridTool(containerElement) {
     minSize.row,
     maxSize.row,
     minTextureScale.row,
-    maxTextureScale.row
+    maxTextureScale.row,
+    randomRotationLabel
   )
   
   // Stamp tool content
@@ -263,6 +491,16 @@ export function mountArtGridTool(containerElement) {
   invertCheckbox.type = 'checkbox'
   invertToggle.append(invertCheckbox, 'Invert (white = shape)')
   
+  const stampScaleRow = createRangeField(
+    'Stamp scale:',
+    'ag-stamp-scale',
+    saved?.stampScale ?? 0.25,
+    0.05,
+    2,
+    0.05
+  )
+  stampScaleRow.row.style.marginTop = '8px'
+
   const stampPreview = document.createElement('canvas')
   stampPreview.style.width = '64px'
   stampPreview.style.height = '64px'
@@ -272,7 +510,7 @@ export function mountArtGridTool(containerElement) {
   stampPreview.width = 64
   stampPreview.height = 64
   
-  stampControls.append(invertToggle, stampPreview)
+  stampControls.append(invertToggle, stampScaleRow.row, stampPreview)
   stampContent.append(uploadLabel, uploadInput, sheetCanvas, stampControls)
   
   // Tools tab bar and panels
@@ -293,7 +531,12 @@ export function mountArtGridTool(containerElement) {
   paletteTab.className = 'entities-tab'
   paletteTab.textContent = 'Colors'
   paletteTab.setAttribute('data-tab', 'palette')
-  toolsTabBar.append(stampTab, settingsTab, paletteTab)
+  const backgroundTab = document.createElement('button')
+  backgroundTab.type = 'button'
+  backgroundTab.className = 'entities-tab'
+  backgroundTab.textContent = 'Background'
+  backgroundTab.setAttribute('data-tab', 'background')
+  toolsTabBar.append(stampTab, settingsTab, paletteTab, backgroundTab)
   
   const toolsTabPanels = document.createElement('div')
   toolsTabPanels.className = 'entities-tab-panels'
@@ -308,6 +551,11 @@ export function mountArtGridTool(containerElement) {
   settingsTabPanel.setAttribute('data-panel', 'settings')
   settingsTabPanel.append(settingsContent)
   
+  const backgroundTabPanel = document.createElement('div')
+  backgroundTabPanel.className = 'entities-tab-panel'
+  backgroundTabPanel.setAttribute('data-panel', 'background')
+  backgroundTabPanel.append(bgSection)
+
   const paletteTabPanel = document.createElement('div')
   paletteTabPanel.className = 'entities-tab-panel'
   paletteTabPanel.setAttribute('data-panel', 'palette')
@@ -326,7 +574,7 @@ export function mountArtGridTool(containerElement) {
   paletteHint.textContent = 'Define colors used when generating shapes. Leave empty to use default colors.'
   paletteContent.append(paletteListEl, paletteAddBtn, paletteHint)
   paletteTabPanel.append(paletteContent)
-  
+
   function renderPaletteList() {
     paletteListEl.innerHTML = ''
     colorPalette.forEach((color, i) => {
@@ -383,7 +631,7 @@ export function mountArtGridTool(containerElement) {
   })
   renderPaletteList()
   
-  toolsTabPanels.append(stampTabPanel, settingsTabPanel, paletteTabPanel)
+  toolsTabPanels.append(stampTabPanel, settingsTabPanel, paletteTabPanel, backgroundTabPanel)
   
   const toolsContent = document.createElement('div')
   toolsContent.className = 'panel-content'
@@ -400,6 +648,7 @@ export function mountArtGridTool(containerElement) {
   stampTab.addEventListener('click', () => switchToolsTab('stamp'))
   settingsTab.addEventListener('click', () => switchToolsTab('settings'))
   paletteTab.addEventListener('click', () => switchToolsTab('palette'))
+  backgroundTab.addEventListener('click', () => switchToolsTab('background'))
   
   toolsPanel.append(toolsHeader, toolsContent)
 
@@ -779,17 +1028,19 @@ export function mountArtGridTool(containerElement) {
     return path
   }
   
+  const getStampScale = () => parseFloat(stampScaleRow.input.value) || 0.25
   function createStampShape(x, y, stampData, color) {
+    const scale = getStampScale()
     const svgPath = bitmapToSvgPath(stampData.canvas, stampInvert)
-    const scale = 1 // You can adjust this
     const centerX = stampData.width / 2
     const centerY = stampData.height / 2
+    const rawSize = Math.max(stampData.width, stampData.height)
     
     return {
       type: 'stamp',
       x,
       y,
-      size: Math.max(stampData.width, stampData.height),
+      size: rawSize * scale,
       color,
       pattern: 'stamp',
       rotation: 0,
@@ -819,7 +1070,10 @@ export function mountArtGridTool(containerElement) {
         maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
         minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
         maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
+        randomRotation: randomRotationCheckbox.checked,
+        stampScale: getStampScale(),
         colorPalette: [...colorPalette],
+        background: getBackground(),
         statsText,
       })
     )
@@ -1015,6 +1269,7 @@ export function mountArtGridTool(containerElement) {
     if (!viewBox) return
     
     metadata.shapes = Array.isArray(metadata.shapes) ? metadata.shapes : []
+    if (!metadata.background) metadata.background = getBackground()
     
     // Assign layers to shapes that don't have them
     let needsUpdate = false
@@ -1073,6 +1328,107 @@ export function mountArtGridTool(containerElement) {
       svgPoint.y = event.clientY
       return svgPoint.matrixTransform(ctm.inverse())
     }
+
+    // Hover outline - only when grab/selection tool active (!stampMode)
+    let hoverOutlineEl = null
+    let hoveredShapeEl = null
+    const clearHoverOutline = () => {
+      if (hoverOutlineEl) {
+        hoverOutlineEl.remove()
+        hoverOutlineEl = null
+      }
+      hoveredShapeEl = null
+    }
+    const updateHoverOutline = (target) => {
+      if (stampMode) return
+      const shapeEl = target?.closest('.art-shape')
+      if (shapeEl?.closest('#selection-outlines')) return
+      if (shapeEl === hoveredShapeEl) return
+      clearHoverOutline()
+      hoveredShapeEl = shapeEl
+      if (!shapeEl) return
+      const baseViewBox = readBaseViewBox(svg)
+      const refSize = 1200
+      const canvasSize = baseViewBox ? Math.min(baseViewBox.width, baseViewBox.height) : refSize
+      const scale = canvasSize / refSize
+      const strokeWidth = Math.max(0.5, 3 * scale)
+      const padding = Math.max(2, 4 * scale)
+      const bbox = shapeEl.getBBox()
+      const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
+      outline.setAttribute('x', bbox.x - padding)
+      outline.setAttribute('y', bbox.y - padding)
+      outline.setAttribute('width', bbox.width + padding * 2)
+      outline.setAttribute('height', bbox.height + padding * 2)
+      outline.setAttribute('fill', 'none')
+      outline.setAttribute('stroke', 'rgba(255, 105, 180, 0.9)')
+      outline.setAttribute('stroke-width', String(strokeWidth))
+      outline.style.pointerEvents = 'none'
+      outline.classList.add('hover-outline')
+      shapeEl.appendChild(outline)
+      hoverOutlineEl = outline
+    }
+
+    // Stamp preview - when stamp tool active, show semi-transparent outline at cursor
+    let stampPreviewGroup = null
+    const clearStampPreview = () => {
+      if (stampPreviewGroup) {
+        stampPreviewGroup.remove()
+        stampPreviewGroup = null
+      }
+    }
+    const updateStampPreview = (point) => {
+      clearStampPreview()
+      if (!stampMode || !stampShape || !point) return
+      const svgPath = bitmapToSvgPath(stampShape.canvas, stampInvert)
+      const rawSize = Math.max(stampShape.width, stampShape.height)
+      const size = rawSize * getStampScale()
+      const scale = size / Math.max(stampShape.width, stampShape.height)
+      const centerX = stampShape.width / 2
+      const centerY = stampShape.height / 2
+      const colors = getColorsForGeneration()
+      const fillColor = colors.length > 0 ? colors[0] : '#ffffff'
+      stampPreviewGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      stampPreviewGroup.id = 'stamp-preview'
+      stampPreviewGroup.setAttribute('transform', `translate(${point.x}, ${point.y})`)
+      stampPreviewGroup.style.pointerEvents = 'none'
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+      path.setAttribute('d', svgPath)
+      path.setAttribute('fill', fillColor)
+      path.setAttribute('fill-opacity', '0.35')
+      path.setAttribute('stroke', 'none')
+      path.setAttribute('shape-rendering', 'crispEdges')
+      path.setAttribute('transform', `translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})`)
+      stampPreviewGroup.appendChild(path)
+      svg.appendChild(stampPreviewGroup)
+    }
+
+    svg.addEventListener('pointerover', (e) => {
+      const point = toSvgCoordinates(e)
+      if (stampMode && stampShape) {
+        clearHoverOutline()
+        updateStampPreview(point)
+      } else {
+        clearStampPreview()
+        updateHoverOutline(e.target)
+      }
+    })
+    svg.addEventListener('pointermove', (e) => {
+      const point = toSvgCoordinates(e)
+      if (stampMode && stampShape) {
+        clearHoverOutline()
+        updateStampPreview(point)
+      } else {
+        clearStampPreview()
+        updateHoverOutline(e.target)
+      }
+    })
+    svg.addEventListener('pointerout', (e) => {
+      if (!e.relatedTarget || !svg.contains(e.relatedTarget)) {
+        clearHoverOutline()
+        clearStampPreview()
+      }
+    })
+
     const toViewBoxDelta = (deltaPixelsX, deltaPixelsY) => {
       const rect = svg.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return null
@@ -1174,50 +1530,13 @@ export function mountArtGridTool(containerElement) {
         return
       }
       
-      // Stamp mode - place stamp on canvas click (unless clicking on existing shape)
+      // Stamp mode - placement handled by previewContent click; here we just prevent pan/drag
       if (stampMode && !stampShape) {
         showToast('Select a stamp first')
         event.preventDefault()
         return
       }
       if (stampMode && stampShape) {
-        const clickedShape = event.target.closest('.art-shape')
-        if (!clickedShape) {
-          const point = toSvgCoordinates(event)
-          if (!point) return
-          
-          const colors = getColorsForGeneration()
-          const randomColor = colors[Math.floor(Math.random() * colors.length)]
-          
-          const newShape = createStampShape(point.x, point.y, stampShape, randomColor)
-          metadata.shapes.push(newShape)
-          
-          const currentViewBoxRaw = svg.getAttribute('viewBox')
-          const grid = {
-            meta: {
-              width: readPositiveInt(width.input, 1200),
-              height: readPositiveInt(height.input, 2400),
-              seed: readPositiveInt(seed.input, Date.now()),
-              shapeCount: metadata.shapes.length,
-            },
-            shapes: metadata.shapes,
-          }
-          
-          latestSvg = renderArtGridSvg(grid)
-          svgWrapper.innerHTML = latestSvg
-          const refreshedSvg = previewContent.querySelector('svg')
-          if (refreshedSvg && currentViewBoxRaw) {
-            refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-          }
-          
-          selectedShapeIds.clear()
-          selectedShapeIds.add(newShape.id)
-          bindSvgInteractions()
-          status.textContent = 'Stamp placed.'
-          event.preventDefault()
-          return
-        }
-        // If stamp mode is on and we clicked an existing shape, don't allow dragging - just return
         event.preventDefault()
         return
       }
@@ -1414,6 +1733,7 @@ export function mountArtGridTool(containerElement) {
       maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
       minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
       maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
+      randomRotation: randomRotationCheckbox.checked,
       colors: getColorsForGeneration(),
     }
     seed.input.value = String(options.seed)
@@ -1435,6 +1755,7 @@ export function mountArtGridTool(containerElement) {
         grid.shapes.push(...existingStampShapes)
         grid.meta.shapeCount = grid.shapes.length
       }
+      grid.background = getBackground()
       latestSvg = renderArtGridSvg(grid)
       svgWrapper.innerHTML = latestSvg
       const generatedSvg = previewContent.querySelector('svg')
@@ -1479,6 +1800,7 @@ export function mountArtGridTool(containerElement) {
           shapeCount: metadata.shapes.length,
         },
         shapes: metadata.shapes,
+        background: getBackground(),
       }
       latestSvg = renderArtGridSvg(grid)
       svgWrapper.innerHTML = latestSvg
@@ -1574,6 +1896,7 @@ export function mountArtGridTool(containerElement) {
           shapeCount: metadata.shapes.length,
         },
         shapes: metadata.shapes,
+        background: getBackground(),
       }
       
       latestSvg = renderArtGridSvg(grid)
@@ -1609,6 +1932,16 @@ export function mountArtGridTool(containerElement) {
     svgWrapper.innerHTML = latestSvg
     const loadedSvg = previewContent.querySelector('svg')
     if (loadedSvg) {
+      const loadedMeta = decodeSvgMetadata(loadedSvg)
+      if (loadedMeta?.background) {
+        background = { ...background, ...loadedMeta.background }
+        bgColorInput.value = background.color
+        bgPatternSelect.value = background.pattern ?? 'dots'
+        const scale = background.textureScale ?? 1
+        bgTextureScaleRow.input.value = String(scale)
+        bgTextureScaleRow.row.querySelector('strong').textContent = String(scale)
+        updateBgTypeUI()
+      }
       // Check if SVG has the art-shape classes needed for interaction
       const hasShapeClasses = loadedSvg.querySelector('.art-shape') !== null
       if (!hasShapeClasses) {
