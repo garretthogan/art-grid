@@ -4,7 +4,19 @@
 */
 
 body.tui {
+  --tui-controls-area-bg: rgba(0, 0, 0, 0.05);
+  --tui-controls-surface-bg: rgba(0, 0, 0, 0.05);
   overflow: hidden;
+}
+
+/* Hide scrollbars but keep scroll functionality */
+body.tui *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+body.tui * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* App layout: left sidebar + canvas (row layout) */
@@ -29,6 +41,14 @@ body.tui #app.app-layout-row #controls-area.collapsed {
 
 body.tui #app.app-layout-row #controls-area:not(.collapsed) {
   width: var(--tui-controls-area-width);
+}
+
+/* Controls header: low opacity */
+body.tui #controls-area .controls-area-header {
+  background: rgba(0, 0, 0, 0.05);
+}
+body.tui #controls-area .controls-area-header:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 /* Collapsed: vertical tab for "Controls" */
@@ -61,8 +81,7 @@ body.tui .controls-area-content {
   gap: var(--tui-gap);
   flex: 1 1 0;
   min-height: 0;
-  overflow-y: scroll; /* always show scrollbar track to prevent width shift */
-  scrollbar-gutter: stable; /* reserve scrollbar space so layout doesn't jump */
+  overflow-y: scroll;
   overflow-anchor: none; /* prevent scroll anchoring from shifting view on DOM updates */
 }
 
@@ -79,7 +98,7 @@ body.tui .floor-plan-tool-root {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--tui-bg);
+  background: #2d2d2d;
   background-image:
     linear-gradient(rgba(55, 55, 55, 0.35) 1px, transparent 1px),
     linear-gradient(90deg, rgba(55, 55, 55, 0.35) 1px, transparent 1px),
@@ -153,7 +172,7 @@ body.tui .floor-plan-preview {
   overflow: hidden;
   border: 2px solid var(--tui-line-strong);
   padding: var(--tui-pad-1);
-  background: var(--tui-bg);
+  background: #2d2d2d;
 }
 
 body.tui .floor-plan-preview-content {
@@ -161,7 +180,7 @@ body.tui .floor-plan-preview-content {
   min-height: 100%;
   display: grid;
   place-items: center;
-  background-color: var(--tui-bg);
+  background-color: #2d2d2d;
   background-image:
     linear-gradient(rgba(51, 51, 51, 0.35) 1px, transparent 1px),
     linear-gradient(90deg, rgba(51, 51, 51, 0.35) 1px, transparent 1px),
@@ -242,7 +261,7 @@ body.tui .floor-plan-preview svg {
   z-index: 2;
   width: 100%;
   height: auto;
-  background: var(--tui-bg);
+  background: #2d2d2d;
   display: block;
   cursor: grab;
 }
@@ -293,7 +312,7 @@ body.tui .entities-tabs {
   flex-wrap: nowrap;
   min-height: 40px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   border: 2px solid var(--tui-line-strong);
   border-bottom: 0;
 }
@@ -305,7 +324,7 @@ body.tui .entities-tab {
   border: 2px solid var(--tui-line-strong);
   border-bottom: 0;
   margin: 0 1px -2px 0;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
   color: var(--tui-muted);
   cursor: pointer;
   font-size: 0.75rem;
@@ -317,29 +336,29 @@ body.tui .entities-tab {
 
 body.tui .entities-tab:hover {
   color: var(--tui-fg);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 body.tui .entities-tab.is-active {
   flex: 1 1 auto;
   min-width: 72px;
   color: var(--tui-fg);
-  background: var(--tui-bg);
-  border-bottom: 2px solid var(--tui-bg);
+  background: rgba(0, 0, 0, 0.05);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.05);
   z-index: 2;
   margin-bottom: -2px;
 }
 
 body.tui .entities-tab-panels {
   margin-top: 0;
-  height: 280px;
-  max-height: 280px;
+  height: 310px;
+  max-height: 310px;
   overflow-y: auto;
   overflow-anchor: none;
   border: 2px solid var(--tui-line-strong);
   border-top: 0;
   padding: var(--tui-pad-2);
-  background: var(--tui-bg);
+  background: rgba(0, 0, 0, 0.05);
 }
 
 body.tui .entities-tab-panel {
@@ -365,7 +384,7 @@ body.tui .mode-gizmo-btn {
   height: 40px;
   padding: var(--tui-pad-1);
   border: 2px solid var(--tui-line-strong);
-  background: var(--tui-bg);
+  background: rgba(0, 0, 0, 0.05);
   color: var(--tui-muted);
   cursor: pointer;
   font-size: 20px;

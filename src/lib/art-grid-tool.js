@@ -93,6 +93,11 @@ function getExportReadySvg(svgText) {
   const svg = doc.querySelector('svg')
   if (!svg) return svgText
   svg.querySelectorAll('.canvas-boundary, #selection-outlines, .art-shape-hit-area, .hover-outline, #stamp-preview').forEach((el) => el.remove())
+  // Ensure bg rect has solid black fill when missing (default; user config from Background tool is preserved)
+  const bgRect = svg.querySelector('.bg')
+  if (bgRect && (!bgRect.getAttribute('fill') || bgRect.getAttribute('fill').trim() === '')) {
+    bgRect.setAttribute('fill', '#000000')
+  }
   // Reset viewBox to full canvas so exported SVG fills the frame (not zoom/pan state)
   const baseViewBox = svg.getAttribute('data-base-viewbox')
   if (baseViewBox) svg.setAttribute('viewBox', baseViewBox)
@@ -656,7 +661,7 @@ export function mountArtGridTool(containerElement) {
   actions.className = 'floor-plan-actions'
   actions.style.position = 'sticky'
   actions.style.top = '0'
-  actions.style.backgroundColor = 'var(--tui-bg)'
+  actions.style.backgroundColor = 'rgba(0, 0, 0, 0.05)'
   actions.style.zIndex = '5'
   actions.style.paddingBottom = 'var(--tui-gap)'
   const randomizeBtn = document.createElement('button')
