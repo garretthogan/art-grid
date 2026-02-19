@@ -22,6 +22,13 @@ if (controlsArea && controlsAreaToggle) {
     controlsArea.classList.toggle('collapsed')
     controlsAreaToggle.setAttribute('aria-expanded', String(!controlsArea.classList.contains('collapsed')))
   })
+
+  document.addEventListener('click', (e) => {
+    if (!controlsArea.classList.contains('collapsed') && !controlsArea.contains(e.target)) {
+      controlsArea.classList.add('collapsed')
+      controlsAreaToggle.setAttribute('aria-expanded', 'false')
+    }
+  })
 }
 
 // Open controls by default on load

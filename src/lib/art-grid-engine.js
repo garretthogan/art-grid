@@ -35,32 +35,47 @@ function randomChoice(rng, values) {
 }
 
 function generateShape(rng, options, bounds) {
-  const shapeType = randomChoice(rng, ['rect', 'circle', 'rect', 'circle']);
+  const stamps = options.stamps;
+  const useStamps = Array.isArray(stamps) && stamps.length > 0;
+
   const size = randomInt(rng, options.minSize, options.maxSize);
   const halfSize = size / 2;
-  
-  // Ensure shapes stay within bounds by accounting for their size
   const minX = halfSize;
   const maxX = bounds.width - halfSize;
   const minY = halfSize;
   const maxY = bounds.height - halfSize;
-  
-  // Clamp positions to keep shapes fully inside the canvas
   const x = minX + rng() * (maxX - minX);
   const y = minY + rng() * (maxY - minY);
-  
   const color = randomChoice(rng, options.colors);
   const pattern = randomChoice(rng, options.patterns);
   const rotation = options.randomRotation !== false ? rng() * 360 : 0;
-  
-  // Assign to a random layer (1-5)
   const layer = randomInt(rng, 1, 5);
-  
-  // Random texture scale
   const minTexScale = options.minTextureScale ?? 0.5;
   const maxTexScale = options.maxTextureScale ?? 2;
   const textureScale = minTexScale + rng() * (maxTexScale - minTexScale);
-  
+  const id = `shape-${Math.floor(rng() * 1000000)}`;
+
+  if (useStamps) {
+    const stamp = stamps[randomInt(rng, 0, stamps.length - 1)];
+    return {
+      type: 'stamp',
+      x,
+      y,
+      size,
+      color,
+      pattern,
+      rotation,
+      layer,
+      textureScale,
+      id,
+      stampPath: stamp.stampPath,
+      stampWidth: stamp.stampWidth,
+      stampHeight: stamp.stampHeight,
+      stampPathResolution: stamp.stampPathResolution,
+    };
+  }
+
+  const shapeType = randomChoice(rng, ['rect', 'circle', 'rect', 'circle']);
   return {
     type: shapeType,
     x,
@@ -71,7 +86,7 @@ function generateShape(rng, options, bounds) {
     rotation,
     layer,
     textureScale,
-    id: `shape-${Math.floor(rng() * 1000000)}`,
+    id,
   };
 }
 
@@ -145,8 +160,14 @@ function createBackgroundStampPatternDef(background, id, width, height) {
   return `<pattern id="${id}" width="${cellW}" height="${cellH}" patternUnits="userSpaceOnUse"><g transform="scale(${scale})"><path d="${stampPath}" fill="${color}" stroke="none" shape-rendering="crispEdges" /></g></pattern>`;
 }
 
+const REFERENCE_SIZE = 50;
+
 function createPatternDef(shape, id) {
-  const textureScale = shape.textureScale ?? 1;
+  let textureScale = shape.textureScale ?? 1;
+  // Stamp shapes: scale pattern with shape size so larger stamps get finer texture (more repetitions)
+  if (shape.type === 'stamp' && shape.size != null && shape.size > 0) {
+    textureScale = textureScale * (REFERENCE_SIZE / Math.max(shape.size, 1));
+  }
   const patternSize = 4 * textureScale;
   const strokeWidth = 0.5 * textureScale;
   
@@ -194,15 +215,22 @@ function renderShape(shape, index) {
   const halfSize = shape.size / 2;
   const hitArea = `<rect class="art-shape-hit-area" x="${-halfSize}" y="${-halfSize}" width="${shape.size}" height="${shape.size}" fill="white" fill-opacity="0.001" pointer-events="all" />`;
 
-  // Handle stamp shapes
+  // Handle stamp shapes (with optional texture pattern)
   if (shape.type === 'stamp' && shape.stampPath) {
-    const scale = shape.size / Math.max(shape.stampWidth, shape.stampHeight)
-    const centerX = shape.stampWidth / 2
-    const centerY = shape.stampHeight / 2
+    const res = shape.stampPathResolution || 1
+    const scale = (shape.size / Math.max(shape.stampWidth, shape.stampHeight)) * res
+    const centerX = shape.stampWidth / (2 * res)
+    const centerY = shape.stampHeight / (2 * res)
+    const stampFill = shape.pattern === 'solid' ? shape.color : `url(#${patternId})`
+    const stampStroke = shape.pattern === 'solid' ? 'none' : shape.color
+    const stampStrokeWidth = shape.pattern === 'solid' ? 0 : 0.25
+    const strokeAttrs = shape.pattern === 'solid'
+      ? 'stroke="none"'
+      : `stroke="${stampStroke}" stroke-width="${stampStrokeWidth}" vector-effect="non-scaling-stroke"`
     return `
 <g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
   ${hitArea}
-  <path d="${shape.stampPath}" fill="${shape.color}" stroke="none" shape-rendering="crispEdges" transform="translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})" />
+  <path d="${shape.stampPath}" fill="${stampFill}" ${strokeAttrs} shape-rendering="crispEdges" transform="translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})" />
 </g>`;
   }
   
@@ -262,6 +290,7 @@ export function renderArtGridSvg(grid, options = {}) {
         stampPath: shape.stampPath,
         stampWidth: shape.stampWidth,
         stampHeight: shape.stampHeight,
+        stampPathResolution: shape.stampPathResolution,
       }),
     })),
   });

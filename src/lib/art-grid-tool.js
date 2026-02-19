@@ -45,7 +45,6 @@ function decodeSvgMetadata(svgElement) {
 
 const MAX_SEED = 4294967295
 const SETTINGS_KEY = 'artGrid.settings'
-const LATEST_SVG_KEY = 'artGrid.latestSvg'
 const DEFAULT_COLORS = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
 const MAX_PALETTE_COLORS_FROM_IMAGE = 32
 
@@ -71,7 +70,7 @@ function extractPaletteFromImage(image, maxColors = MAX_PALETTE_COLORS_FROM_IMAG
     const canvas = document.createElement('canvas')
     canvas.width = cw
     canvas.height = ch
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) {
       reject(new Error('Could not get canvas context'))
       return
@@ -375,11 +374,28 @@ export function mountArtGridTool(containerElement) {
   preview.className = 'floor-plan-preview'
   const previewContent = document.createElement('div')
   previewContent.className = 'floor-plan-preview-content'
+  const loadingOverlay = document.createElement('div')
+  loadingOverlay.className = 'ag-loading-overlay'
+  loadingOverlay.setAttribute('aria-hidden', 'true')
+  loadingOverlay.innerHTML = '<span class="ag-loading-overlay-spinner" aria-hidden="true"></span><span class="ag-loading-overlay-text">Generating art grid…</span>'
   const svgWrapper = document.createElement('div')
   svgWrapper.className = 'color-palette-svg-wrapper'
+  previewContent.appendChild(loadingOverlay)
   previewContent.appendChild(svgWrapper)
   preview.appendChild(previewContent)
   previewContainer.appendChild(preview)
+
+  /** Parse SVG string as XML so metadata/namespaces are preserved; replace wrapper content and return the SVG element. */
+  function setSvgContent(svgString) {
+    if (!svgString || typeof svgString !== 'string') return null
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(svgString, 'image/svg+xml')
+    const svg = doc.querySelector('svg')
+    if (!svg) return null
+    svgWrapper.innerHTML = ''
+    svgWrapper.appendChild(svg)
+    return svg
+  }
 
   const getColorsForGeneration = () =>
     colorPalette.length > 0 ? colorPalette : DEFAULT_COLORS
@@ -397,42 +413,58 @@ export function mountArtGridTool(containerElement) {
       const ctm = svg.getScreenCTM()
       if (ctm) {
         const pt = svg.createSVGPoint()
-          pt.x = e.clientX
-          pt.y = e.clientY
-          const svgPoint = pt.matrixTransform(ctm.inverse())
-          const baseViewBox = readBaseViewBox(svg)
-          if (baseViewBox && svgPoint.x >= 0 && svgPoint.x <= baseViewBox.width && svgPoint.y >= 0 && svgPoint.y <= baseViewBox.height) {
-            const metadata = decodeSvgMetadata(svg)
-            if (metadata) {
-              const colors = getColorsForGeneration()
-              const randomColor = colors[Math.floor(Math.random() * colors.length)]
-              const newShape = createStampShape(svgPoint.x, svgPoint.y, stampShape, randomColor)
-              metadata.shapes.push(newShape)
-              const currentViewBoxRaw = svg.getAttribute('viewBox')
-              const grid = {
-                meta: {
-                  width: readPositiveInt(width.input, 1200),
-                  height: readPositiveInt(height.input, 2400),
-                  seed: readPositiveInt(seed.input, Date.now()),
-                  shapeCount: metadata.shapes.length,
-                },
-                shapes: metadata.shapes,
-                background: getBackground(),
-              }
-              latestSvg = renderArtGridSvg(grid)
-              svgWrapper.innerHTML = latestSvg
-              const refreshedSvg = previewContent.querySelector('svg')
-              if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-              selectedShapeIds.clear()
-              selectedShapeIds.add(newShape.id)
-              bindSvgInteractions()
-              status.textContent = 'Stamp placed.'
-              e.stopPropagation()
-              e.preventDefault()
-              return
-            }
+        pt.x = e.clientX
+        pt.y = e.clientY
+        const svgPoint = pt.matrixTransform(ctm.inverse())
+        const baseViewBox = readBaseViewBox(svg)
+        if (baseViewBox && svgPoint.x >= 0 && svgPoint.x <= baseViewBox.width && svgPoint.y >= 0 && svgPoint.y <= baseViewBox.height) {
+          const metadata = decodeSvgMetadata(svg)
+          if (metadata) {
+            e.stopPropagation()
+            e.preventDefault()
+            const prevBodyCursor = document.body.style.getPropertyValue('cursor') || document.body.style.cursor
+            document.body.style.setProperty('cursor', 'wait', 'important')
+            preview.classList.add('stamp-placing')
+            // Force cursor refresh (some browsers only update on mouse move)
+            document.dispatchEvent(new MouseEvent('mousemove', { clientX: e.clientX, clientY: e.clientY, bubbles: true }))
+            // Double rAF so the browser paints the wait cursor before we block the main thread
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                try {
+                  const colors = getColorsForGeneration()
+                  const randomColor = colors[Math.floor(Math.random() * colors.length)]
+                  const newShape = createStampShape(svgPoint.x, svgPoint.y, stampShape, randomColor)
+                  metadata.shapes.push(newShape)
+                  const currentViewBoxRaw = svg.getAttribute('viewBox')
+                  const grid = {
+                    meta: {
+                      width: readPositiveInt(width.input, 1200),
+                      height: readPositiveInt(height.input, 2400),
+                      seed: readPositiveInt(seed.input, Date.now()),
+                      shapeCount: metadata.shapes.length,
+                    },
+                    shapes: metadata.shapes,
+                    background: getBackground(),
+                  }
+                  latestSvg = renderArtGridSvg(grid)
+                  const refreshedSvg = setSvgContent(latestSvg)
+                  if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+                  selectedShapeIds.clear()
+                  selectedShapeIds.add(newShape.id)
+                  bindSvgInteractions()
+                  updateSelection()
+                  status.textContent = 'Stamp placed.'
+                } finally {
+                  document.body.style.removeProperty('cursor')
+                  if (prevBodyCursor) document.body.style.cursor = prevBodyCursor
+                  preview.classList.remove('stamp-placing')
+                }
+              })
+            })
+            return
           }
         }
+      }
     }
 
     if (stampMode && !clickedOnSvg && setStampMode) {
@@ -672,8 +704,7 @@ export function mountArtGridTool(containerElement) {
     }
     const currentViewBoxRaw = svg.getAttribute('viewBox')
     latestSvg = renderArtGridSvg(grid)
-    svgWrapper.innerHTML = latestSvg
-    const refreshedSvg = previewContent.querySelector('svg')
+    const refreshedSvg = setSvgContent(latestSvg)
     if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
     bindSvgInteractions()
   }
@@ -734,6 +765,25 @@ export function mountArtGridTool(containerElement) {
   )
   stampScaleRow.row.style.marginTop = '8px'
 
+  const stampTextureRow = document.createElement('div')
+  stampTextureRow.style.marginTop = '8px'
+  const stampTextureLabel = document.createElement('label')
+  stampTextureLabel.textContent = 'Texture:'
+  stampTextureLabel.style.display = 'block'
+  stampTextureLabel.style.marginBottom = '4px'
+  const stampTextureSelect = document.createElement('select')
+  stampTextureSelect.title = 'Texture pattern for placed stamps'
+  stampTextureSelect.setAttribute('aria-label', 'Stamp texture pattern')
+  const stampTextureOptions = ['solid', ...PATTERNS]
+  stampTextureOptions.forEach((p) => {
+    const opt = document.createElement('option')
+    opt.value = p
+    opt.textContent = p === 'solid' ? 'Solid' : p.split('-').map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join('-')
+    stampTextureSelect.appendChild(opt)
+  })
+  stampTextureSelect.value = saved?.stampPattern ?? 'solid'
+  stampTextureRow.append(stampTextureLabel, stampTextureSelect)
+
   const stampPreview = document.createElement('canvas')
   stampPreview.style.width = '64px'
   stampPreview.style.height = '64px'
@@ -743,7 +793,7 @@ export function mountArtGridTool(containerElement) {
   stampPreview.width = 64
   stampPreview.height = 64
   
-  stampControls.append(invertToggle, stampScaleRow.row, stampPreview)
+  stampControls.append(invertToggle, stampScaleRow.row, stampTextureRow, stampPreview)
   stampContent.append(uploadLabel, uploadInput, sheetCanvas, stampControls)
   
   // Tools tab bar and panels
@@ -1121,6 +1171,7 @@ export function mountArtGridTool(containerElement) {
   }
   setStampMode = (enabled) => {
     stampMode = enabled
+    preview.classList.toggle('stamp-mode', stampMode)
     updateModeUI()
     if (stampMode && stampShape) {
       status.textContent = 'Stamp mode active. Click on canvas to place shape.'
@@ -1166,6 +1217,10 @@ export function mountArtGridTool(containerElement) {
       } else {
         status.textContent = 'Custom stamp sheet loaded. Click a cell to select.'
       }
+      // If no SVG on canvas yet, generate one now that stamps are available
+      if (previewContent && !previewContent.querySelector('svg') && typeof generate === 'function') {
+        generate()
+      }
     }
     img.onerror = () => {
       if (src.includes('stamps.png')) {
@@ -1208,7 +1263,8 @@ export function mountArtGridTool(containerElement) {
     const tempCanvas = document.createElement('canvas')
     tempCanvas.width = cellWidth
     tempCanvas.height = cellHeight
-    const tempCtx = tempCanvas.getContext('2d')
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
+    if (!tempCtx) return
     tempCtx.imageSmoothingEnabled = false
     tempCtx.drawImage(
       sheetImage,
@@ -1280,7 +1336,8 @@ export function mountArtGridTool(containerElement) {
     const croppedCanvas = document.createElement('canvas')
     croppedCanvas.width = cropWidth
     croppedCanvas.height = cropHeight
-    const croppedCtx = croppedCanvas.getContext('2d')
+    const croppedCtx = croppedCanvas.getContext('2d', { willReadFrequently: true })
+    if (!croppedCtx) return
     croppedCtx.imageSmoothingEnabled = false
     croppedCtx.drawImage(
       tempCanvas,
@@ -1396,13 +1453,19 @@ export function mountArtGridTool(containerElement) {
     setTimeout(() => toast.remove(), 2500)
   }
   
-  function bitmapToSvgPath(canvas, invert) {
-    const ctx = canvas.getContext('2d')
+  // Higher = smoother when scaling stamps up, but larger SVG and slower parse/render. 4 balances quality and performance.
+  const STAMP_PATH_RESOLUTION = 1
+
+  const READBACK_CONTEXT_OPTIONS = { willReadFrequently: true }
+
+  function bitmapToSvgPath(canvas, invert, pathResolution = 1) {
+    const ctx = canvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
+    if (!ctx) return ''
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     const { data, width, height } = imageData
-    
+    const u = 1 / pathResolution
+
     let path = ''
-    
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const i = (y * width + x) * 4
@@ -1410,49 +1473,108 @@ export function mountArtGridTool(containerElement) {
         const g = data[i + 1]
         const b = data[i + 2]
         const a = data[i + 3]
-        
-        if (a < 10) continue // Skip transparent
-        
+        if (a < 10) continue
         const brightness = (r + g + b) / 3
-        
-        // Only process pure black or pure white pixels
         const isPureBlack = brightness < 50
         const isPureWhite = brightness > 205
-        
-        if (!isPureBlack && !isPureWhite) continue // Skip gray/grid pixels
-        
+        if (!isPureBlack && !isPureWhite) continue
         const isShape = invert ? isPureWhite : isPureBlack
-        
         if (isShape) {
-          path += `M${x},${y}h1v1h-1z`
+          const x0 = x * u
+          const y0 = y * u
+          path += `M${x0},${y0}h${u}v${u}h${-u}z`
         }
       }
     }
-    
     return path
   }
   
   const getStampScale = () => parseFloat(stampScaleRow.input.value) || 0.25
+
+  /** Returns all stamp variants from the sheet (each cell as normal + inverted) for random generation. */
+  function getStampPool() {
+    if (!sheetImage) return []
+    const cellWidth = sheetImage.width / sheetGridCols
+    const cellHeight = sheetImage.height / sheetGridRows
+    const pool = []
+    const isGridPixel = (r, g, b) => {
+      const brightness = (r + g + b) / 3
+      const isPureBlack = brightness < 50
+      const isPureWhite = brightness > 205
+      return !isPureBlack && !isPureWhite
+    }
+    for (let row = 0; row < sheetGridRows; row++) {
+      for (let col = 0; col < sheetGridCols; col++) {
+        const tempCanvas = document.createElement('canvas')
+        tempCanvas.width = cellWidth
+        tempCanvas.height = cellHeight
+        const tempCtx = tempCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
+        if (!tempCtx) continue
+        tempCtx.imageSmoothingEnabled = false
+        tempCtx.drawImage(
+          sheetImage,
+          col * cellWidth, row * cellHeight, cellWidth, cellHeight,
+          0, 0, cellWidth, cellHeight
+        )
+        const imageData = tempCtx.getImageData(0, 0, cellWidth, cellHeight)
+        const { data, width: w, height: h } = imageData
+        let minX = w, minY = h, maxX = 0, maxY = 0
+        let hasPixels = false
+        for (let py = 0; py < h; py++) {
+          for (let px = 0; px < w; px++) {
+            const i = (py * w + px) * 4
+            if (data[i + 3] < 10) continue
+            const r = data[i], g = data[i + 1], b = data[i + 2]
+            if (isGridPixel(r, g, b)) continue
+            const brightness = (r + g + b) / 3
+            const isPureBlack = brightness < 50
+            const isPureWhite = brightness > 205
+            if (!isPureBlack && !isPureWhite) continue
+            hasPixels = true
+            minX = Math.min(minX, px)
+            minY = Math.min(minY, py)
+            maxX = Math.max(maxX, px)
+            maxY = Math.max(maxY, py)
+          }
+        }
+        if (!hasPixels) continue
+        const cropWidth = maxX - minX + 1
+        const cropHeight = maxY - minY + 1
+        const croppedCanvas = document.createElement('canvas')
+        croppedCanvas.width = cropWidth
+        croppedCanvas.height = cropHeight
+        const croppedCtx = croppedCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
+        if (!croppedCtx) continue
+        croppedCtx.imageSmoothingEnabled = false
+        croppedCtx.drawImage(tempCanvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
+        const stampPathNormal = bitmapToSvgPath(croppedCanvas, false, STAMP_PATH_RESOLUTION)
+        const stampPathInverted = bitmapToSvgPath(croppedCanvas, true, STAMP_PATH_RESOLUTION)
+        if (stampPathNormal) pool.push({ stampPath: stampPathNormal, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION })
+        if (stampPathInverted) pool.push({ stampPath: stampPathInverted, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION })
+      }
+    }
+    return pool
+  }
+
   function createStampShape(x, y, stampData, color) {
     const scale = getStampScale()
-    const svgPath = bitmapToSvgPath(stampData.canvas, stampInvert)
-    const centerX = stampData.width / 2
-    const centerY = stampData.height / 2
+    const svgPath = bitmapToSvgPath(stampData.canvas, stampInvert, STAMP_PATH_RESOLUTION)
     const rawSize = Math.max(stampData.width, stampData.height)
-    
+    const pattern = stampTextureSelect.value || 'solid'
     return {
       type: 'stamp',
       x,
       y,
       size: rawSize * scale,
       color,
-      pattern: 'stamp',
+      pattern,
       rotation: 0,
       layer: 'stamps',
       id: `shape-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       stampPath: svgPath,
       stampWidth: stampData.width,
       stampHeight: stampData.height,
+      stampPathResolution: STAMP_PATH_RESOLUTION,
     }
   }
 
@@ -1476,6 +1598,7 @@ export function mountArtGridTool(containerElement) {
         maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
         randomRotation: randomRotationCheckbox.checked,
         stampScale: getStampScale(),
+        stampPattern: stampTextureSelect.value || 'solid',
         colorPalette: [...colorPalette],
         background: getBackground(),
         statsText,
@@ -1486,8 +1609,9 @@ export function mountArtGridTool(containerElement) {
   function persistMetadata(svg, metadata) {
     const metadataNode = svg.querySelector('#occult-floorplan-meta')
     if (metadataNode != null) metadataNode.textContent = encodeSvgMetadata(metadata)
+    const stampPreview = svg.querySelector('#stamp-preview')
+    if (stampPreview) stampPreview.remove()
     latestSvg = svg.outerHTML
-    window.localStorage.setItem(LATEST_SVG_KEY, latestSvg)
   }
 
   function renderLayerList(metadata) {
@@ -1799,64 +1923,23 @@ export function mountArtGridTool(containerElement) {
       hoverOutlineEl = outline
     }
 
-    // Stamp preview - when stamp tool active, show semi-transparent outline at cursor
-    let stampPreviewGroup = null
-    const clearStampPreview = () => {
-      if (stampPreviewGroup) {
-        stampPreviewGroup.remove()
-        stampPreviewGroup = null
-      }
-    }
-    const updateStampPreview = (point) => {
-      clearStampPreview()
-      if (!stampMode || !stampShape || !point) return
-      const svgPath = bitmapToSvgPath(stampShape.canvas, stampInvert)
-      const rawSize = Math.max(stampShape.width, stampShape.height)
-      const size = rawSize * getStampScale()
-      const scale = size / Math.max(stampShape.width, stampShape.height)
-      const centerX = stampShape.width / 2
-      const centerY = stampShape.height / 2
-      const colors = getColorsForGeneration()
-      const fillColor = colors.length > 0 ? colors[0] : '#ffffff'
-      stampPreviewGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-      stampPreviewGroup.id = 'stamp-preview'
-      stampPreviewGroup.setAttribute('transform', `translate(${point.x}, ${point.y})`)
-      stampPreviewGroup.style.pointerEvents = 'none'
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-      path.setAttribute('d', svgPath)
-      path.setAttribute('fill', fillColor)
-      path.setAttribute('fill-opacity', '0.35')
-      path.setAttribute('stroke', 'none')
-      path.setAttribute('shape-rendering', 'crispEdges')
-      path.setAttribute('transform', `translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})`)
-      stampPreviewGroup.appendChild(path)
-      svg.appendChild(stampPreviewGroup)
-    }
-
     svg.addEventListener('pointerover', (e) => {
-      const point = toSvgCoordinates(e)
       if (stampMode && stampShape) {
         clearHoverOutline()
-        updateStampPreview(point)
       } else {
-        clearStampPreview()
         updateHoverOutline(e.target)
       }
     })
     svg.addEventListener('pointermove', (e) => {
-      const point = toSvgCoordinates(e)
       if (stampMode && stampShape) {
         clearHoverOutline()
-        updateStampPreview(point)
       } else {
-        clearStampPreview()
         updateHoverOutline(e.target)
       }
     })
     svg.addEventListener('pointerout', (e) => {
       if (!e.relatedTarget || !svg.contains(e.relatedTarget)) {
         clearHoverOutline()
-        clearStampPreview()
       }
     })
 
@@ -1899,8 +1982,7 @@ export function mountArtGridTool(containerElement) {
       svg.setAttribute('viewBox', `${nextViewBox.minX} ${nextViewBox.minY} ${nextViewBox.width} ${nextViewBox.height}`)
       const currentViewBoxRaw = svg.getAttribute('viewBox')
       persistMetadata(svg, metadata)
-      svgWrapper.innerHTML = latestSvg
-      const refreshedSvg = previewContent.querySelector('svg')
+      const refreshedSvg = setSvgContent(latestSvg)
       if (refreshedSvg && currentViewBoxRaw) {
         refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
       }
@@ -1997,6 +2079,7 @@ export function mountArtGridTool(containerElement) {
           selectedShapeIds.clear()
           selectedShapeIds.add(id)
           selectedLayer = null
+          updateSelection()
         }
         
         dragState = {
@@ -2086,12 +2169,12 @@ export function mountArtGridTool(containerElement) {
             circle.setAttribute('r', newSize / 2)
           }
         } else if (shape.type === 'stamp') {
-          // For stamps, we need to scale the path transform
           const path = dragState.shapeElement.querySelector('path')
           if (path && shape.stampWidth && shape.stampHeight) {
-            const scale = newSize / Math.max(shape.stampWidth, shape.stampHeight)
-            const centerX = shape.stampWidth / 2
-            const centerY = shape.stampHeight / 2
+            const res = shape.stampPathResolution || 1
+            const scale = (newSize / Math.max(shape.stampWidth, shape.stampHeight)) * res
+            const centerX = shape.stampWidth / (2 * res)
+            const centerY = shape.stampHeight / (2 * res)
             path.setAttribute('transform', `translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})`)
           }
         } else {
@@ -2118,6 +2201,7 @@ export function mountArtGridTool(containerElement) {
         dragState.element.setAttribute('transform', transform)
         dragState.element.setAttribute('data-plan-x', String(shape.x))
         dragState.element.setAttribute('data-plan-y', String(shape.y))
+        updateSelection()
       }
     }
 
@@ -2135,15 +2219,9 @@ export function mountArtGridTool(containerElement) {
         }
       }
       
-      const currentViewBoxRaw = svg.getAttribute('viewBox')
       dragState = null
       persistMetadata(svg, metadata)
-      svgWrapper.innerHTML = latestSvg
-      const refreshedSvg = previewContent.querySelector('svg')
-      if (refreshedSvg && currentViewBoxRaw) {
-        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-      }
-      bindSvgInteractions()
+      updateSelection()
     }
     svg.onpointerup = endDrag
     svg.onpointercancel = endDrag
@@ -2154,9 +2232,22 @@ export function mountArtGridTool(containerElement) {
     }
   }
 
+  function setLoadingOverlay(visible) {
+    loadingOverlay.classList.toggle('is-visible', visible)
+    loadingOverlay.setAttribute('aria-hidden', String(!visible))
+  }
+
   async function generate() {
     if (isGenerating) return
     isGenerating = true
+    const stampPool = getStampPool()
+    if (!stampPool.length) {
+      showToast('Load a stamp sheet first.')
+      isGenerating = false
+      setGeneratingState(false)
+      return
+    }
+    setLoadingOverlay(true)
     const options = {
       seed: readPositiveInt(seed.input, Date.now()),
       width: readPositiveInt(width.input, 1200),
@@ -2168,6 +2259,7 @@ export function mountArtGridTool(containerElement) {
       maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
       randomRotation: randomRotationCheckbox.checked,
       colors: getColorsForGeneration(),
+      stamps: stampPool,
     }
     seed.input.value = String(options.seed)
     status.textContent = 'Generating art grid...'
@@ -2190,23 +2282,32 @@ export function mountArtGridTool(containerElement) {
       }
       grid.background = getBackground()
       latestSvg = renderArtGridSvg(grid)
-      svgWrapper.innerHTML = latestSvg
-      const generatedSvg = previewContent.querySelector('svg')
-      if (generatedSvg && previousViewBoxRaw) {
-        generatedSvg.setAttribute('viewBox', previousViewBoxRaw)
+      const generatedSvg = setSvgContent(latestSvg)
+      if (generatedSvg) {
+        const baseViewBox = readBaseViewBox(generatedSvg) ?? { minX: 0, minY: 0, width: options.width, height: options.height }
+        const W = baseViewBox.width
+        const H = baseViewBox.height
+        const margin = Math.max(W, H) * 0.15
+        const vx = baseViewBox.minX - margin
+        const vy = baseViewBox.minY - margin
+        const vw = W + margin * 2
+        const vh = H + margin * 2
+        generatedSvg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`)
         latestSvg = generatedSvg.outerHTML
       }
-      window.localStorage.setItem(LATEST_SVG_KEY, latestSvg)
       const statsText = `Shapes: ${grid.meta.shapeCount} · Size: ${grid.meta.width}×${grid.meta.height}px`
       stats.textContent = statsText
       persistSettings(statsText)
       selectedShapeIds.clear()
       selectedLayer = null
+      setLoadingOverlay(false)
       bindSvgInteractions()
+      updateSelection()
       status.textContent = 'Art grid generated.'
     } catch (error) {
       status.textContent = `Could not generate art grid: ${error instanceof Error ? error.message : 'Unknown error'}`
     } finally {
+      setLoadingOverlay(false)
       isGenerating = false
       setGeneratingState(false)
     }
@@ -2236,8 +2337,7 @@ export function mountArtGridTool(containerElement) {
         background: getBackground(),
       }
       latestSvg = renderArtGridSvg(grid)
-      svgWrapper.innerHTML = latestSvg
-      const refreshedSvg = previewContent.querySelector('svg')
+      const refreshedSvg = setSvgContent(latestSvg)
       if (refreshedSvg && currentViewBoxRaw) {
         refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
       }
@@ -2263,87 +2363,61 @@ export function mountArtGridTool(containerElement) {
       if (!svg) return
       const metadata = decodeSvgMetadata(svg)
       if (!metadata) return
-      
-      const currentViewBoxRaw = svg.getAttribute('viewBox')
-      const canvasWidth = readPositiveInt(width.input, 1200)
-      const canvasHeight = readPositiveInt(height.input, 2400)
-      
-      // Get shapes in the selected layer and regenerate them
-      const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
-      const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
-      
-      // Generate new shapes for this layer with a random seed
-      const newSeed = randomSeed()
-      const rng = (() => {
-        let state = (Number(newSeed) >>> 0) || 1;
-        return () => {
-          state ^= state << 13;
-          state ^= state >>> 17;
-          state ^= state << 5;
-          return (state >>> 0) / 4294967296;
-        };
-      })()
-      
-      const randomInt = (min, max) => Math.floor(rng() * (max - min + 1)) + min
-      const randomChoice = (arr) => arr[randomInt(0, arr.length - 1)]
-      
-      const minSz = readBoundedInt(minSize.input, 8, 2, 100)
-      const maxSz = readBoundedInt(maxSize.input, 120, 10, 300)
-      const minTexScale = parseFloat(minTextureScale.input.value) || 0.5
-      const maxTexScale = parseFloat(maxTextureScale.input.value) || 2
-      const colors = getColorsForGeneration()
-      const patterns = ['solid', 'hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes']
-      
-      const newLayerShapes = layerShapes.map(oldShape => {
-        const shapeType = randomChoice(['rect', 'circle', 'rect', 'circle'])
-        const size = randomInt(minSz, maxSz)
-        const halfSize = size / 2
-        const minX = halfSize
-        const maxX = canvasWidth - halfSize
-        const minY = halfSize
-        const maxY = canvasHeight - halfSize
-        const x = minX + rng() * (maxX - minX)
-        const y = minY + rng() * (maxY - minY)
-        const textureScale = minTexScale + rng() * (maxTexScale - minTexScale)
-        
-        return {
-          ...oldShape,
-          type: shapeType,
-          x,
-          y,
-          size,
-          color: randomChoice(colors),
-          pattern: randomChoice(patterns),
-          rotation: rng() * 360,
-          textureScale,
-        }
+      const stampPool = getStampPool()
+      if (!stampPool.length) {
+        showToast('Load a stamp sheet first.')
+        return
+      }
+      setLoadingOverlay(true)
+      // Yield so the browser paints the loading overlay before we block the main thread
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          try {
+            const currentViewBoxRaw = svg.getAttribute('viewBox')
+            const canvasWidth = readPositiveInt(width.input, 1200)
+            const canvasHeight = readPositiveInt(height.input, 2400)
+            const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
+            const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
+            const layerOptions = {
+              seed: randomSeed(),
+              width: canvasWidth,
+              height: canvasHeight,
+              shapeCount: layerShapes.length,
+              minSize: readBoundedInt(minSize.input, 8, 2, 100),
+              maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
+              minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
+              maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
+              randomRotation: randomRotationCheckbox.checked,
+              colors: getColorsForGeneration(),
+              stamps: stampPool,
+            }
+            const layerGrid = generateArtGrid(layerOptions)
+            const newLayerShapes = layerGrid.shapes.map((s) => ({ ...s, layer: selectedLayer }))
+            metadata.shapes = [...otherShapes, ...newLayerShapes]
+            const grid = {
+              meta: {
+                width: canvasWidth,
+                height: canvasHeight,
+                seed: readPositiveInt(seed.input, Date.now()),
+                shapeCount: metadata.shapes.length,
+              },
+              shapes: metadata.shapes,
+              background: getBackground(),
+            }
+            latestSvg = renderArtGridSvg(grid)
+            const refreshedSvg = setSvgContent(latestSvg)
+            if (refreshedSvg && currentViewBoxRaw) {
+              refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+            }
+            selectedShapeIds.clear()
+            newLayerShapes.forEach(shape => selectedShapeIds.add(shape.id))
+            bindSvgInteractions()
+            status.textContent = `Regenerated ${newLayerShapes.length} shapes in Layer ${selectedLayer}.`
+          } finally {
+            setLoadingOverlay(false)
+          }
+        })
       })
-      
-      metadata.shapes = [...otherShapes, ...newLayerShapes]
-      
-      const grid = {
-        meta: {
-          width: canvasWidth,
-          height: canvasHeight,
-          seed: readPositiveInt(seed.input, Date.now()),
-          shapeCount: metadata.shapes.length,
-        },
-        shapes: metadata.shapes,
-        background: getBackground(),
-      }
-      
-      latestSvg = renderArtGridSvg(grid)
-      svgWrapper.innerHTML = latestSvg
-      const refreshedSvg = previewContent.querySelector('svg')
-      if (refreshedSvg && currentViewBoxRaw) {
-        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-      }
-      
-      // Keep the layer selected and update selection
-      selectedShapeIds.clear()
-      newLayerShapes.forEach(shape => selectedShapeIds.add(shape.id))
-      bindSvgInteractions()
-      status.textContent = `Regenerated ${newLayerShapes.length} shapes in Layer ${selectedLayer}.`
     } else {
       // No layer selected - randomize seed and regenerate everything
       seed.input.value = String(randomSeed())
@@ -2351,35 +2425,5 @@ export function mountArtGridTool(containerElement) {
     }
   })
 
-  const savedSvg = window.localStorage.getItem(LATEST_SVG_KEY)
-  if (savedSvg) {
-    latestSvg = savedSvg
-    svgWrapper.innerHTML = latestSvg
-    const loadedSvg = previewContent.querySelector('svg')
-    if (loadedSvg) {
-      const loadedMeta = decodeSvgMetadata(loadedSvg)
-      if (loadedMeta?.background) {
-        background = { ...background, ...loadedMeta.background }
-        bgColorInput.value = background.color
-        bgHexInput.value = background.color
-        bgPatternSelect.value = background.pattern ?? 'dots'
-        const scale = background.textureScale ?? 1
-        bgTextureScaleRow.input.value = String(scale)
-        bgTextureScaleRow.row.querySelector('strong').textContent = String(scale)
-        updateBgTypeUI()
-      }
-      // Check if SVG has the art-shape classes needed for interaction
-      const hasShapeClasses = loadedSvg.querySelector('.art-shape') !== null
-      if (!hasShapeClasses) {
-        // Old SVG format - regenerate with current settings
-        status.textContent = 'Upgrading SVG format...'
-        generate()
-        return
-      }
-    }
-    status.textContent = 'Loaded previous art grid.'
-    bindSvgInteractions()
-  } else {
-    generate()
-  }
+  generate()
 }

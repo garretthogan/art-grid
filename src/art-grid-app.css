@@ -32,6 +32,8 @@ body.tui #app.app-layout-row #controls-area {
   flex-direction: column;
   min-height: 0;
   transition: width 0.2s ease;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 body.tui #app.app-layout-row #controls-area.collapsed {
@@ -177,7 +179,9 @@ body.tui .floor-plan-preview {
 
 body.tui .floor-plan-preview-content {
   position: relative;
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   display: grid;
   place-items: center;
   background-color: #2d2d2d;
@@ -203,9 +207,48 @@ body.tui .floor-plan-preview-content::after {
   background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
 }
 
+body.tui .ag-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tui-pad-2);
+  background: rgba(45, 45, 45, 0.85);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+
+body.tui .ag-loading-overlay.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body.tui .ag-loading-overlay-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--tui-line-strong);
+  border-top-color: var(--tui-cyan, #0ff);
+  border-radius: 50%;
+  animation: ag-loading-spin 0.7s linear infinite;
+}
+
+body.tui .ag-loading-overlay-text {
+  color: var(--tui-fg);
+  font-size: 0.95rem;
+}
+
+@keyframes ag-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 body.tui .color-palette-svg-wrapper {
   width: 100%;
   height: 100%;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -213,6 +256,10 @@ body.tui .color-palette-svg-wrapper {
 
 body.tui .color-palette-svg-wrapper svg {
   max-width: 100%;
+  max-height: 100%;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 body.tui .color-palette-list {
@@ -259,8 +306,6 @@ body.tui .color-palette-hex {
 body.tui .floor-plan-preview svg {
   position: relative;
   z-index: 2;
-  width: 100%;
-  height: auto;
   background: #2d2d2d;
   display: block;
   cursor: grab;
@@ -268,6 +313,17 @@ body.tui .floor-plan-preview svg {
 
 body.tui .floor-plan-preview svg.is-panning {
   cursor: grabbing;
+}
+
+body.tui .floor-plan-preview.stamp-mode svg,
+body.tui .floor-plan-preview.stamp-mode svg .art-shape {
+  cursor: crosshair;
+}
+
+body.tui .floor-plan-preview.stamp-placing,
+body.tui .floor-plan-preview.stamp-placing svg,
+body.tui .floor-plan-preview.stamp-placing svg .art-shape {
+  cursor: wait;
 }
 
 /* Entity list (shapes / layers) */
@@ -439,4 +495,38 @@ body.tui #camera-controls {
 body.tui #camera-controls > .panel {
   flex: 0 0 auto;
   min-width: 0;
+}
+
+/* Mobile: control panel full width with solid grey background */
+@media (max-width: 768px) {
+  body.tui #app.app-layout-row {
+    flex-direction: column;
+  }
+
+  body.tui #app.app-layout-row #controls-area {
+    min-width: 0;
+    background: #2d2d2d;
+  }
+
+  body.tui #app.app-layout-row #controls-area.collapsed {
+    width: 40px;
+    min-width: 40px;
+  }
+
+  body.tui #app.app-layout-row #controls-area:not(.collapsed) {
+    width: 100%;
+  }
+
+  body.tui #controls-area .controls-area-header {
+    background: #2d2d2d;
+  }
+
+  body.tui #controls-area .controls-area-header:hover {
+    background: #3a3a3a;
+  }
+
+  /* Hide tool buttons (top right) while control panel is open */
+  body.tui #app #controls-area:not(.collapsed) ~ .mode-toolbar {
+    display: none;
+  }
 }
