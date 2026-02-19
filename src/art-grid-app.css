@@ -404,6 +404,18 @@ body.tui .mode-gizmo-btn.is-active {
   outline-offset: 2px;
 }
 
+body.tui .mode-toolbar .mode-toolbar-text-btn {
+  width: auto;
+  min-width: 64px;
+  padding-left: var(--tui-pad-2);
+  padding-right: var(--tui-pad-2);
+  font-size: 0.9rem;
+}
+
+body.tui .mode-toolbar .save-export-dropdown .button {
+  white-space: nowrap;
+}
+
 body.tui .bg-type-row .bg-type-btn {
   width: 100%;
   min-width: 0;

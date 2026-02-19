@@ -1,4 +1,30 @@
 import { generateArtGrid, renderArtGridSvg, PATTERNS } from './art-grid-engine.js'
+import Tesseract from 'tesseract.js'
+
+const HEX_IN_IMAGE_REGEX = /#?([0-9a-fA-F]{6})\b/g
+
+/**
+ * Extract hex color codes from text in an image using OCR (full-resolution image for accuracy).
+ * @param {Blob} blob
+ * @returns {Promise<string[]>} Normalized #rrggbb strings, order preserved, deduped by first occurrence
+ */
+async function extractHexCodesFromImage(blob) {
+  const {
+    data: { text },
+  } = await Tesseract.recognize(blob, 'eng', { logger: () => {} })
+  const seen = new Set()
+  const out = []
+  let m
+  HEX_IN_IMAGE_REGEX.lastIndex = 0
+  while ((m = HEX_IN_IMAGE_REGEX.exec(text)) !== null) {
+    const hex = '#' + m[1].toLowerCase()
+    if (!seen.has(hex)) {
+      seen.add(hex)
+      out.push(hex)
+    }
+  }
+  return out
+}
 
 function encodeSvgMetadata(metadata) {
   return btoa(encodeURIComponent(JSON.stringify(metadata)))
@@ -21,6 +47,134 @@ const MAX_SEED = 4294967295
 const SETTINGS_KEY = 'artGrid.settings'
 const LATEST_SVG_KEY = 'artGrid.latestSvg'
 const DEFAULT_COLORS = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
+const MAX_PALETTE_COLORS_FROM_IMAGE = 32
+
+/**
+ * Extract a color palette from an image by sampling pixels, quantizing to merge
+ * similar colors, and returning the most frequent colors as hex strings.
+ * @param {HTMLImageElement} image
+ * @param {number} maxColors
+ * @returns {Promise<string[]>}
+ */
+function extractPaletteFromImage(image, maxColors = MAX_PALETTE_COLORS_FROM_IMAGE) {
+  return new Promise((resolve, reject) => {
+    const maxDim = 256
+    const w = image.naturalWidth
+    const h = image.naturalHeight
+    if (!w || !h) {
+      reject(new Error('Image has no dimensions'))
+      return
+    }
+    const scale = Math.min(1, maxDim / Math.max(w, h))
+    const cw = Math.max(1, Math.round(w * scale))
+    const ch = Math.max(1, Math.round(h * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = cw
+    canvas.height = ch
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      reject(new Error('Could not get canvas context'))
+      return
+    }
+    ctx.drawImage(image, 0, 0, cw, ch)
+    let data
+    try {
+      data = ctx.getImageData(0, 0, cw, ch)
+    } catch (e) {
+      reject(e)
+      return
+    }
+    const bins = new Map()
+    const shift = 4
+    const step = Math.max(1, Math.floor((cw * ch) / 20000))
+    const totalPixels = cw * ch
+    const minSaturation = 28
+    for (let p = 0; p < totalPixels; p += step) {
+      const i = p * 4
+      const r = data.data[i]
+      const g = data.data[i + 1]
+      const b = data.data[i + 2]
+      const a = data.data[i + 3]
+      if (a < 128) continue
+      const lo = Math.min(r, g, b)
+      const hi = Math.max(r, g, b)
+      if (hi - lo < minSaturation) continue
+      const key = (r >> shift) << (2 * (8 - shift)) | (g >> shift) << (8 - shift) | (b >> shift)
+      const existing = bins.get(key)
+      if (existing) {
+        existing.count++
+        existing.rSum += r
+        existing.gSum += g
+        existing.bSum += b
+      } else {
+        bins.set(key, { count: 1, rSum: r, gSum: g, bSum: b })
+      }
+    }
+    let list = Array.from(bins.entries())
+      .map(([, v]) => ({
+        count: v.count,
+        r: Math.round(v.rSum / v.count),
+        g: Math.round(v.gSum / v.count),
+        b: Math.round(v.bSum / v.count),
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, Math.max(maxColors, 64))
+
+    const rgbDist = (a, b) =>
+      Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2)
+    const mergeThreshold = 52
+
+    while (list.length > 1) {
+      let minD = Infinity
+      let bestI = -1
+      let bestJ = -1
+      for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+          const d = rgbDist(list[i], list[j])
+          if (d < minD) {
+            minD = d
+            bestI = i
+            bestJ = j
+          }
+        }
+      }
+      if (minD >= mergeThreshold) break
+      const a = list[bestI]
+      const b = list[bestJ]
+      const total = a.count + b.count
+      const merged = {
+        count: total,
+        r: Math.round((a.r * a.count + b.r * b.count) / total),
+        g: Math.round((a.g * a.count + b.g * b.count) / total),
+        b: Math.round((a.b * a.count + b.b * b.count) / total),
+      }
+      list[bestI] = merged
+      list.splice(bestJ, 1)
+    }
+
+    const quantizeChannel = (v) => Math.round(v / 17) * 17
+    const saturation = (c) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b)
+    const hex = (n) => {
+      const s = Math.max(0, Math.min(255, n)).toString(16)
+      return s.length === 1 ? '0' + s : s
+    }
+    const out = []
+    const seen = new Set()
+    for (const c of list.slice(0, maxColors)) {
+      if (saturation(c) < minSaturation) continue
+      const q = {
+        r: quantizeChannel(c.r),
+        g: quantizeChannel(c.g),
+        b: quantizeChannel(c.b),
+      }
+      const h = '#' + hex(q.r) + hex(q.g) + hex(q.b)
+      if (seen.has(h)) continue
+      seen.add(h)
+      out.push(h)
+    }
+    resolve(out)
+  })
+}
 
 function createNumberField(labelText, id, value, min, max) {
   const row = document.createElement('label')
@@ -114,6 +268,44 @@ function downloadSvg(svgText, fileName = `art-grid-${Date.now()}.svg`) {
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(objectUrl)
+}
+
+function parseSvgDimensions(svgText) {
+  const vb = svgText.match(/viewBox=["']?\s*([\d.\s-]+)["']?/)?.[1]?.trim()?.split(/\s+/)
+  if (vb && vb.length >= 4) return { w: Number(vb[2]), h: Number(vb[3]) }
+  const w = svgText.match(/width=["']?\s*([\d.]+)/)?.[1]
+  const h = svgText.match(/height=["']?\s*([\d.]+)/)?.[1]
+  if (w && h) return { w: Number(w), h: Number(h) }
+  return { w: 1200, h: 1200 }
+}
+
+function downloadSvgAsRaster(svgText, mimeType, extension, fileNameBase) {
+  const base = fileNameBase || `art-grid-${Date.now()}`
+  const dims = parseSvgDimensions(svgText)
+  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const img = new Image()
+  img.onload = () => {
+    URL.revokeObjectURL(url)
+    const canvas = document.createElement('canvas')
+    canvas.width = dims.w
+    canvas.height = dims.h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.drawImage(img, 0, 0, dims.w, dims.h)
+    canvas.toBlob((blob) => {
+      if (!blob) return
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `${base}.${extension}`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(a.href)
+    }, mimeType, mimeType === 'image/jpeg' ? 0.92 : undefined)
+  }
+  img.onerror = () => URL.revokeObjectURL(url)
+  img.src = url
 }
 
 function loadSettings() {
@@ -314,6 +506,38 @@ export function mountArtGridTool(containerElement) {
   bgColorInput.style.padding = '2px'
   bgColorInput.style.cursor = 'pointer'
   bgColorRow.appendChild(bgColorInput)
+  const bgHexInput = document.createElement('input')
+  bgHexInput.type = 'text'
+  bgHexInput.value = background.color
+  bgHexInput.setAttribute('aria-label', 'Background hex code')
+  bgHexInput.style.width = '7em'
+  bgHexInput.style.fontFamily = 'monospace'
+  bgColorRow.appendChild(bgHexInput)
+  const parseBgHex = (raw) => {
+    const s = raw.trim().replace(/^#/, '')
+    if (/^[0-9a-fA-F]{6}$/.test(s)) return '#' + s.toLowerCase()
+    if (/^[0-9a-fA-F]{3}$/.test(s)) return '#' + s[0] + s[0] + s[1] + s[1] + s[2] + s[2]
+    return null
+  }
+  const applyBgHexFromInput = () => {
+    const parsed = parseBgHex(bgHexInput.value)
+    if (parsed) {
+      background.color = parsed
+      bgColorInput.value = parsed
+      bgHexInput.value = parsed
+      applyBackground()
+    } else {
+      bgHexInput.value = bgColorInput.value
+    }
+  }
+  bgHexInput.addEventListener('change', applyBgHexFromInput)
+  bgHexInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      applyBgHexFromInput()
+      bgHexInput.blur()
+    }
+  })
   const bgTypeRow = document.createElement('div')
   bgTypeRow.className = 'bg-type-row'
   bgTypeRow.style.display = 'flex'
@@ -386,6 +610,7 @@ export function mountArtGridTool(containerElement) {
   updateBgTypeUI()
   bgColorInput.addEventListener('input', () => {
     background.color = bgColorInput.value
+    bgHexInput.value = bgColorInput.value
     applyBackground()
   })
   bgTypeSolid.addEventListener('click', () => { background.textureType = 'solid'; updateBgTypeUI(); applyBackground() })
@@ -396,6 +621,7 @@ export function mountArtGridTool(containerElement) {
     if (!background.color && colors.length > 0) {
       background.color = colors[Math.floor(Math.random() * colors.length)]
       bgColorInput.value = background.color
+      bgHexInput.value = background.color
     }
     bgPatternSelect.value = background.pattern
     updateBgTypeUI()
@@ -409,6 +635,7 @@ export function mountArtGridTool(containerElement) {
     const colors = getColorsForGeneration()
     background.color = colors[Math.floor(Math.random() * colors.length)]
     bgColorInput.value = background.color
+    bgHexInput.value = background.color
     applyBackground()
   })
   bgUseStampBtn.addEventListener('click', () => {
@@ -422,6 +649,7 @@ export function mountArtGridTool(containerElement) {
     background.stampHeight = stampShape.height
     background.color = getColorsForGeneration()[0]
     bgColorInput.value = background.color
+    bgHexInput.value = background.color
     applyBackground()
     showToast('Stamp set as background')
   })
@@ -573,11 +801,74 @@ export function mountArtGridTool(containerElement) {
   paletteAddBtn.textContent = 'Add color'
   paletteAddBtn.style.marginTop = '8px'
   paletteAddBtn.style.width = '100%'
+  const paletteImportInput = document.createElement('input')
+  paletteImportInput.type = 'file'
+  paletteImportInput.accept = 'image/*'
+  paletteImportInput.style.display = 'none'
+  const paletteImportBtn = document.createElement('button')
+  paletteImportBtn.type = 'button'
+  paletteImportBtn.className = 'button'
+  paletteImportBtn.textContent = 'Import from image'
+  paletteImportBtn.style.marginTop = '8px'
+  paletteImportBtn.style.width = '100%'
+  paletteImportBtn.setAttribute('aria-label', 'Import color palette from an image file')
+  paletteImportBtn.addEventListener('click', () => paletteImportInput.click())
+  paletteImportInput.addEventListener('change', async () => {
+    const file = paletteImportInput.files?.[0]
+    paletteImportInput.value = ''
+    if (!file) return
+    const url = URL.createObjectURL(file)
+    paletteImportBtn.disabled = true
+    showToast('Reading hex codes…')
+    try {
+      let colors = await extractHexCodesFromImage(file)
+      if (colors.length === 0) {
+        const img = await new Promise((resolve, reject) => {
+          const i = new Image()
+          i.onload = () => resolve(i)
+          i.onerror = () => reject(new Error('Could not load image'))
+          i.src = url
+        })
+        colors = await extractPaletteFromImage(img, MAX_PALETTE_COLORS_FROM_IMAGE)
+        if (colors.length === 0) {
+          showToast('No hex codes or colors could be extracted from the image')
+          return
+        }
+        showToast(`No hex codes found; extracted ${colors.length} colors from image`)
+      } else {
+        showToast(`Imported ${colors.length} hex codes from image`)
+      }
+      colorPalette.length = 0
+      colorPalette.push(...colors)
+      renderPaletteList()
+      persistSettings(stats?.textContent ?? '')
+    } catch (err) {
+      showToast(err?.message ?? 'Failed to import palette from image')
+    } finally {
+      paletteImportBtn.disabled = false
+      URL.revokeObjectURL(url)
+    }
+  })
+  const paletteClearAllBtn = document.createElement('button')
+  paletteClearAllBtn.type = 'button'
+  paletteClearAllBtn.className = 'button'
+  paletteClearAllBtn.textContent = 'Clear all colors'
+  paletteClearAllBtn.style.marginTop = '8px'
+  paletteClearAllBtn.style.width = '100%'
+  paletteClearAllBtn.setAttribute('aria-label', 'Remove all colors from the palette')
+  paletteClearAllBtn.addEventListener('click', () => {
+    if (colorPalette.length === 0) return
+    if (!window.confirm('Remove all colors from the palette? Generation will use default colors until you add or import new ones.')) return
+    colorPalette.length = 0
+    renderPaletteList()
+    persistSettings(stats?.textContent ?? '')
+    showToast('Palette cleared')
+  })
   const paletteHint = document.createElement('p')
   paletteHint.className = 'floor-plan-status'
   paletteHint.style.margin = '8px 0 0'
   paletteHint.textContent = 'Define colors used when generating shapes. Leave empty to use default colors.'
-  paletteContent.append(paletteListEl, paletteAddBtn, paletteHint)
+  paletteContent.append(paletteListEl, paletteAddBtn, paletteImportBtn, paletteClearAllBtn, paletteImportInput, paletteHint)
   paletteTabPanel.append(paletteContent)
 
   function renderPaletteList() {
@@ -589,30 +880,75 @@ export function mountArtGridTool(containerElement) {
       colorInput.type = 'color'
       colorInput.value = color
       colorInput.className = 'color-palette-picker'
-      const label = document.createElement('span')
-      label.textContent = color
-      label.className = 'color-palette-hex'
+      const hexInput = document.createElement('input')
+      hexInput.type = 'text'
+      hexInput.value = color
+      hexInput.className = 'color-palette-hex'
+      hexInput.setAttribute('aria-label', 'Hex code')
+      hexInput.style.width = '7em'
+      hexInput.style.fontFamily = 'monospace'
+      const copyBtn = document.createElement('button')
+      copyBtn.type = 'button'
+      copyBtn.textContent = '📋'
+      copyBtn.setAttribute('aria-label', 'Copy hex code to clipboard')
+      copyBtn.title = 'Copy hex code'
       const deleteBtn = document.createElement('button')
       deleteBtn.type = 'button'
-      deleteBtn.textContent = 'Delete'
+      deleteBtn.textContent = '🗑️'
+      deleteBtn.setAttribute('aria-label', 'Delete color')
+      deleteBtn.title = 'Delete color'
       deleteBtn.style.marginLeft = 'auto'
-      li.append(colorInput, label, deleteBtn)
+      li.append(colorInput, hexInput, copyBtn, deleteBtn)
       li.style.cursor = 'pointer'
-      label.style.cursor = 'pointer'
+      const parseHex = (raw) => {
+        const s = raw.trim().replace(/^#/, '')
+        if (/^[0-9a-fA-F]{6}$/.test(s)) return '#' + s.toLowerCase()
+        if (/^[0-9a-fA-F]{3}$/.test(s)) {
+          return '#' + s[0] + s[0] + s[1] + s[1] + s[2] + s[2]
+        }
+        return null
+      }
+      const applyHexFromInput = () => {
+        const parsed = parseHex(hexInput.value)
+        if (parsed) {
+          colorPalette[i] = parsed
+          colorInput.value = parsed
+          hexInput.value = parsed
+          persistSettings(stats?.textContent ?? '')
+        } else {
+          hexInput.value = colorInput.value
+        }
+      }
       li.addEventListener('click', (e) => {
-        if (e.target === deleteBtn) return
+        if (e.target === deleteBtn || e.target === copyBtn || e.target === hexInput) return
         colorInput.click()
+      })
+      copyBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const hex = colorInput.value
+        navigator.clipboard.writeText(hex).then(
+          () => showToast('Copied ' + hex + ' to clipboard'),
+          () => showToast('Could not copy to clipboard')
+        )
       })
       colorInput.addEventListener('input', () => {
         colorPalette[i] = colorInput.value
-        label.textContent = colorInput.value
+        hexInput.value = colorInput.value
         persistSettings(stats?.textContent ?? '')
       })
       colorInput.addEventListener('change', () => {
         colorPalette[i] = colorInput.value
-        label.textContent = colorInput.value
+        hexInput.value = colorInput.value
         renderPaletteList()
         persistSettings(stats?.textContent ?? '')
+      })
+      hexInput.addEventListener('change', applyHexFromInput)
+      hexInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          applyHexFromInput()
+          hexInput.blur()
+        }
       })
       deleteBtn.addEventListener('click', (e) => {
         e.stopPropagation()
@@ -628,6 +964,7 @@ export function mountArtGridTool(containerElement) {
       empty.textContent = 'No colors. Add colors or leave empty for defaults.'
       paletteListEl.appendChild(empty)
     }
+    paletteClearAllBtn.disabled = colorPalette.length === 0
   }
   paletteAddBtn.addEventListener('click', () => {
     colorPalette.push('#808080')
@@ -657,22 +994,47 @@ export function mountArtGridTool(containerElement) {
   
   toolsPanel.append(toolsHeader, toolsContent)
 
-  const actions = document.createElement('div')
-  actions.className = 'floor-plan-actions'
-  actions.style.position = 'sticky'
-  actions.style.top = '0'
-  actions.style.backgroundColor = 'rgba(0, 0, 0, 0.05)'
-  actions.style.zIndex = '5'
-  actions.style.paddingBottom = 'var(--tui-gap)'
   const randomizeBtn = document.createElement('button')
   randomizeBtn.type = 'button'
   randomizeBtn.id = 'ag-randomize-seed'
-  randomizeBtn.textContent = 'Generate'
+  randomizeBtn.className = 'mode-gizmo-btn'
+  randomizeBtn.title = 'Generate a new art grid'
+  randomizeBtn.setAttribute('aria-label', 'Generate art grid')
+  randomizeBtn.textContent = '🔄'
   const saveBtn = document.createElement('button')
   saveBtn.type = 'button'
   saveBtn.id = 'ag-save-svg'
-  saveBtn.textContent = 'Save SVG'
-  actions.append(randomizeBtn, saveBtn)
+  saveBtn.className = 'mode-gizmo-btn'
+  saveBtn.title = 'Export – SVG, JPEG, PNG, or all'
+  saveBtn.setAttribute('aria-label', 'Export art grid')
+  saveBtn.textContent = '📥'
+  const saveDropdown = document.createElement('div')
+  saveDropdown.className = 'save-export-dropdown'
+  saveDropdown.style.display = 'none'
+  saveDropdown.style.position = 'absolute'
+  saveDropdown.style.top = '100%'
+  saveDropdown.style.right = '0'
+  saveDropdown.style.marginTop = '4px'
+  saveDropdown.style.background = 'var(--tui-bg, #111)'
+  saveDropdown.style.border = '2px solid var(--tui-line-strong)'
+  saveDropdown.style.borderRadius = 'var(--tui-radius, 4px)'
+  saveDropdown.style.padding = '4px'
+  saveDropdown.style.zIndex = '1001'
+  saveDropdown.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'
+  ;['Export SVG', 'Export JPEG', 'Export PNG', 'Export all three'].forEach((label) => {
+    const opt = document.createElement('button')
+    opt.type = 'button'
+    opt.className = 'button'
+    opt.style.display = 'block'
+    opt.style.width = '100%'
+    opt.style.textAlign = 'left'
+    opt.style.marginBottom = '2px'
+    opt.textContent = label
+    saveDropdown.appendChild(opt)
+  })
+  const saveWrap = document.createElement('div')
+  saveWrap.style.position = 'relative'
+  saveWrap.append(saveBtn, saveDropdown)
 
   const status = document.createElement('p')
   status.className = 'floor-plan-status'
@@ -680,10 +1042,7 @@ export function mountArtGridTool(containerElement) {
   const stats = document.createElement('p')
   stats.className = 'floor-plan-stats'
   stats.textContent = saved?.statsText ?? ''
-  controls.append(
-    actions,
-    toolsPanel
-  )
+  controls.append(toolsPanel)
   controlsContainer.appendChild(controls)
 
   const app = document.getElementById('app')
@@ -692,7 +1051,7 @@ export function mountArtGridTool(containerElement) {
   statusStatsWrap.append(status, stats)
   if (app) app.appendChild(statusStatsWrap)
 
-  // Mode toolbar (transform = selection, stamp = stamp mode, center camera)
+  // Mode toolbar (selection, stamp, center, generate, save)
   const modeToolbar = document.createElement('div')
   modeToolbar.className = 'mode-toolbar'
   const transformIcon = document.createElement('button')
@@ -713,8 +1072,48 @@ export function mountArtGridTool(containerElement) {
   centerCameraBtn.title = 'Center view – Reset camera to show full canvas'
   centerCameraBtn.setAttribute('aria-label', 'Center camera on canvas')
   centerCameraBtn.textContent = '📍'
-  modeToolbar.append(transformIcon, stampIcon, centerCameraBtn)
+  modeToolbar.append(transformIcon, stampIcon, centerCameraBtn, randomizeBtn, saveWrap)
   if (app) app.appendChild(modeToolbar)
+
+  const closeSaveDropdown = () => {
+    saveDropdown.style.display = 'none'
+  }
+  saveBtn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    if (!latestSvg) {
+      status.textContent = 'Generate an art grid before saving.'
+      return
+    }
+    saveDropdown.style.display = saveDropdown.style.display === 'none' ? 'block' : 'none'
+  })
+  const runExport = (which) => {
+    closeSaveDropdown()
+    const base = `art-grid-${Date.now()}`
+    const svgText = getExportReadySvg(latestSvg)
+    if (which === 'svg') {
+      downloadSvg(svgText, `${base}.svg`)
+      status.textContent = 'SVG downloaded.'
+    } else if (which === 'jpeg') {
+      downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
+      status.textContent = 'JPEG downloaded.'
+    } else if (which === 'png') {
+      downloadSvgAsRaster(svgText, 'image/png', 'png', base)
+      status.textContent = 'PNG downloaded.'
+    } else {
+      downloadSvg(svgText, `${base}.svg`)
+      downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
+      downloadSvgAsRaster(svgText, 'image/png', 'png', base)
+      status.textContent = 'SVG, JPEG, and PNG downloaded.'
+    }
+  }
+  saveDropdown.querySelectorAll('button').forEach((opt, idx) => {
+    opt.addEventListener('click', () => {
+      runExport(idx === 0 ? 'svg' : idx === 1 ? 'jpeg' : idx === 2 ? 'png' : 'all')
+    })
+  })
+  document.addEventListener('click', (e) => {
+    if (!saveWrap.contains(e.target)) closeSaveDropdown()
+  })
 
   const updateModeUI = () => {
     transformIcon.classList.toggle('is-active', !stampMode)
@@ -1951,14 +2350,6 @@ export function mountArtGridTool(containerElement) {
       generate()
     }
   })
-  saveBtn.addEventListener('click', () => {
-    if (!latestSvg) {
-      status.textContent = 'Generate an art grid before saving.'
-      return
-    }
-    downloadSvg(getExportReadySvg(latestSvg))
-    status.textContent = 'SVG downloaded.'
-  })
 
   const savedSvg = window.localStorage.getItem(LATEST_SVG_KEY)
   if (savedSvg) {
@@ -1970,6 +2361,7 @@ export function mountArtGridTool(containerElement) {
       if (loadedMeta?.background) {
         background = { ...background, ...loadedMeta.background }
         bgColorInput.value = background.color
+        bgHexInput.value = background.color
         bgPatternSelect.value = background.pattern ?? 'dots'
         const scale = background.textureScale ?? 1
         bgTextureScaleRow.input.value = String(scale)
