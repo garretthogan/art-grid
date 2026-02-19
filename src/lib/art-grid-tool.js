@@ -92,7 +92,7 @@ function getExportReadySvg(svgText) {
   const doc = parser.parseFromString(svgText, 'image/svg+xml')
   const svg = doc.querySelector('svg')
   if (!svg) return svgText
-  svg.querySelectorAll('.canvas-boundary, #selection-outlines, .art-shape-hit-area, .hover-outline, #stamp-preview').forEach((el) => el.remove())
+  svg.querySelectorAll('.canvas-boundary, #selection-outlines, .art-shape-hit-area, .hover-outline, #hover-outlines, #stamp-preview').forEach((el) => el.remove())
   // Ensure bg rect has solid black fill when missing (default; user config from Background tool is preserved)
   const bgRect = svg.querySelector('.bg')
   if (bgRect && (!bgRect.getAttribute('fill') || bgRect.getAttribute('fill').trim() === '')) {
@@ -1342,6 +1342,8 @@ export function mountArtGridTool(containerElement) {
         hoverOutlineEl.remove()
         hoverOutlineEl = null
       }
+      const hoverOutlinesGroup = svg.querySelector('#hover-outlines')
+      if (hoverOutlinesGroup) hoverOutlinesGroup.remove()
       hoveredShapeEl = null
     }
     const updateHoverOutline = (target) => {
@@ -1358,18 +1360,43 @@ export function mountArtGridTool(containerElement) {
       const scale = canvasSize / refSize
       const strokeWidth = Math.max(0.5, 3 * scale)
       const padding = Math.max(2, 4 * scale)
-      const bbox = shapeEl.getBBox()
+      const planX = parseFloat(shapeEl.getAttribute('data-plan-x')) || 0
+      const planY = parseFloat(shapeEl.getAttribute('data-plan-y')) || 0
+      const transformStr = shapeEl.getAttribute('transform') || ''
+      const rotateMatch = transformStr.match(/rotate\s*\(\s*([-\d.]+)/)
+      const rotationRad = rotateMatch ? (parseFloat(rotateMatch[1]) * Math.PI) / 180 : 0
+      const cos = Math.cos(rotationRad)
+      const sin = Math.sin(rotationRad)
+      const localBBox = shapeEl.getBBox()
+      const toRoot = (lx, ly) => ({
+        x: planX + lx * cos - ly * sin,
+        y: planY + lx * sin + ly * cos,
+      })
+      const c1 = toRoot(localBBox.x, localBBox.y)
+      const c2 = toRoot(localBBox.x + localBBox.width, localBBox.y)
+      const c3 = toRoot(localBBox.x + localBBox.width, localBBox.y + localBBox.height)
+      const c4 = toRoot(localBBox.x, localBBox.y + localBBox.height)
+      const minX = Math.min(c1.x, c2.x, c3.x, c4.x)
+      const minY = Math.min(c1.y, c2.y, c3.y, c4.y)
+      const maxX = Math.max(c1.x, c2.x, c3.x, c4.x)
+      const maxY = Math.max(c1.y, c2.y, c3.y, c4.y)
       const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-      outline.setAttribute('x', bbox.x - padding)
-      outline.setAttribute('y', bbox.y - padding)
-      outline.setAttribute('width', bbox.width + padding * 2)
-      outline.setAttribute('height', bbox.height + padding * 2)
+      outline.setAttribute('x', minX - padding)
+      outline.setAttribute('y', minY - padding)
+      outline.setAttribute('width', maxX - minX + padding * 2)
+      outline.setAttribute('height', maxY - minY + padding * 2)
       outline.setAttribute('fill', 'none')
       outline.setAttribute('stroke', 'rgba(255, 105, 180, 0.9)')
       outline.setAttribute('stroke-width', String(strokeWidth))
       outline.style.pointerEvents = 'none'
       outline.classList.add('hover-outline')
-      shapeEl.appendChild(outline)
+      let hoverOutlinesGroup = svg.querySelector('#hover-outlines')
+      if (!hoverOutlinesGroup) {
+        hoverOutlinesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+        hoverOutlinesGroup.id = 'hover-outlines'
+        svg.appendChild(hoverOutlinesGroup)
+      }
+      hoverOutlinesGroup.appendChild(outline)
       hoverOutlineEl = outline
     }
 
@@ -1482,6 +1509,7 @@ export function mountArtGridTool(containerElement) {
     }
 
     svg.onpointerdown = (event) => {
+      clearHoverOutline()
       // Check for rotation gizmo click
       const rotateGizmo = event.target.closest('[data-rotation-gizmo]')
       if (rotateGizmo) {
@@ -1696,6 +1724,7 @@ export function mountArtGridTool(containerElement) {
 
     const endDrag = (event) => {
       if (!dragState) return
+      clearHoverOutline()
       dragState.element.releasePointerCapture(event.pointerId)
       svg.classList.remove('is-panning')
       
