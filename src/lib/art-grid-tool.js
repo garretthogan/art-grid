@@ -240,7 +240,12 @@ function randomSeed() {
   return Math.max(1, Math.min(MAX_SEED, hashed))
 }
 
-function getExportReadySvg(svgText) {
+// Grid divisions so export matches workspace: ~12 major cells across, 5 fine per major (like 24/120 in screen space)
+const EXPORT_GRID_MAJOR_DIVISIONS = 12
+const EXPORT_GRID_FINE_PER_MAJOR = 5
+
+function getExportReadySvg(svgText, options = {}) {
+  const { includeGrid = false } = options
   const parser = new DOMParser()
   const doc = parser.parseFromString(svgText, 'image/svg+xml')
   const svg = doc.querySelector('svg')
@@ -250,6 +255,93 @@ function getExportReadySvg(svgText) {
   const bgRect = svg.querySelector('.bg')
   if (bgRect && (!bgRect.getAttribute('fill') || bgRect.getAttribute('fill').trim() === '')) {
     bgRect.setAttribute('fill', '#000000')
+  }
+  if (includeGrid) {
+    // Use base viewBox only so grid is always full-canvas and even (current viewBox can be zoomed/panned and causes uneven cells)
+    const baseViewBoxRaw = svg.getAttribute('data-base-viewbox') || svg.getAttribute('viewBox')
+    const vb = baseViewBoxRaw ? baseViewBoxRaw.trim().split(/\s+/).map(Number) : [0, 0, 1200, 1200]
+    const [vx, vy, vw, vh] = vb.length >= 4 ? vb : [0, 0, 1200, 1200]
+    // Per-axis spacing so we get exactly 12 even divisions and last line on the edge (no gaps/float errors)
+    const majorSpacingX = vw / EXPORT_GRID_MAJOR_DIVISIONS
+    const majorSpacingY = vh / EXPORT_GRID_MAJOR_DIVISIONS
+    const fineSpacingX = majorSpacingX / EXPORT_GRID_FINE_PER_MAJOR
+    const fineSpacingY = majorSpacingY / EXPORT_GRID_FINE_PER_MAJOR
+    const ns = 'http://www.w3.org/2000/svg'
+    const defs = svg.querySelector('defs') || (() => {
+      const d = doc.createElementNS(ns, 'defs')
+      svg.insertBefore(d, svg.firstChild)
+      return d
+    })()
+    const pattern = doc.createElementNS(ns, 'pattern')
+    pattern.setAttribute('id', 'export-grid-pattern')
+    pattern.setAttribute('x', String(vx))
+    pattern.setAttribute('y', String(vy))
+    pattern.setAttribute('width', String(majorSpacingX))
+    pattern.setAttribute('height', String(majorSpacingY))
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse')
+    const strokeScale = Math.max(0.5, (vw + vh) / 3000)
+    const fineStroke = Math.max(1, 0.25 * strokeScale)
+    const majorStroke = Math.max(2.5, 1.2 * strokeScale)
+    // Fine grid: interior lines only (thin, gray)
+    for (let k = 1; k < EXPORT_GRID_FINE_PER_MAJOR; k++) {
+      const ix = k * fineSpacingX
+      const iy = k * fineSpacingY
+      const lineV = doc.createElementNS(ns, 'line')
+      lineV.setAttribute('x1', String(ix))
+      lineV.setAttribute('y1', '0')
+      lineV.setAttribute('x2', String(ix))
+      lineV.setAttribute('y2', String(majorSpacingY))
+      lineV.setAttribute('stroke', 'rgba(130,130,130,0.28)')
+      lineV.setAttribute('stroke-width', String(fineStroke))
+      pattern.appendChild(lineV)
+      const lineH = doc.createElementNS(ns, 'line')
+      lineH.setAttribute('x1', '0')
+      lineH.setAttribute('y1', String(iy))
+      lineH.setAttribute('x2', String(majorSpacingX))
+      lineH.setAttribute('y2', String(iy))
+      lineH.setAttribute('stroke', 'rgba(130,130,130,0.28)')
+      lineH.setAttribute('stroke-width', String(fineStroke))
+      pattern.appendChild(lineH)
+    }
+    defs.appendChild(pattern)
+    const gridRect = doc.createElementNS(ns, 'rect')
+    gridRect.setAttribute('x', String(vx))
+    gridRect.setAttribute('y', String(vy))
+    gridRect.setAttribute('width', String(vw))
+    gridRect.setAttribute('height', String(vh))
+    gridRect.setAttribute('fill', 'url(#export-grid-pattern)')
+    gridRect.setAttribute('id', 'export-grid-layer')
+    const gridGroup = doc.createElementNS(ns, 'g')
+    gridGroup.setAttribute('id', 'export-grid-group')
+    gridGroup.appendChild(gridRect)
+    // Major grid: thicker, more opaque so large cells clearly encapsulate the small cells (match editor)
+    const majorG = doc.createElementNS(ns, 'g')
+    majorG.setAttribute('stroke', 'rgba(51,51,51,0.65)')
+    majorG.setAttribute('stroke-width', String(majorStroke))
+    for (let i = 0; i <= EXPORT_GRID_MAJOR_DIVISIONS; i++) {
+      const x = vx + i * majorSpacingX
+      const lineV = doc.createElementNS(ns, 'line')
+      lineV.setAttribute('x1', String(x))
+      lineV.setAttribute('y1', String(vy))
+      lineV.setAttribute('x2', String(x))
+      lineV.setAttribute('y2', String(vy + vh))
+      majorG.appendChild(lineV)
+    }
+    for (let i = 0; i <= EXPORT_GRID_MAJOR_DIVISIONS; i++) {
+      const y = vy + i * majorSpacingY
+      const lineH = doc.createElementNS(ns, 'line')
+      lineH.setAttribute('x1', String(vx))
+      lineH.setAttribute('y1', String(y))
+      lineH.setAttribute('x2', String(vx + vw))
+      lineH.setAttribute('y2', String(y))
+      majorG.appendChild(lineH)
+    }
+    gridGroup.appendChild(majorG)
+    if (bgRect && bgRect.nextSibling) {
+      svg.insertBefore(gridGroup, bgRect.nextSibling)
+    } else {
+      svg.appendChild(gridGroup)
+    }
   }
   // Reset viewBox to full canvas so exported SVG fills the frame (not zoom/pan state)
   const baseViewBox = svg.getAttribute('data-base-viewbox')
@@ -475,19 +567,14 @@ export function mountArtGridTool(containerElement) {
 
   const controls = document.createElement('div')
   controls.className = 'floor-plan-controls'
-  
-  // Create consolidated tools panel (Settings + Stamp Tool with tabs)
-  const toolsPanel = document.createElement('div')
-  toolsPanel.className = 'panel'
-  toolsPanel.id = 'tools-panel'
-  
-  const toolsHeader = document.createElement('button')
-  toolsHeader.className = 'panel-header'
-  toolsHeader.type = 'button'
-  toolsHeader.innerHTML = '<span class="panel-chevron">▼</span>Tools'
-  toolsHeader.addEventListener('click', () => {
-    toolsPanel.classList.toggle('collapsed')
-  })
+
+  const generateNewBtn = document.createElement('button')
+  generateNewBtn.type = 'button'
+  generateNewBtn.className = 'button ag-generate-new-btn'
+  generateNewBtn.textContent = 'Generate'
+  generateNewBtn.title = 'Generate a new art grid'
+  generateNewBtn.setAttribute('aria-label', 'Generate')
+  controls.appendChild(generateNewBtn)
   
   const settingsContent = document.createElement('div')
   settingsContent.className = 'panel-content'
@@ -796,52 +883,6 @@ export function mountArtGridTool(containerElement) {
   stampControls.append(invertToggle, stampScaleRow.row, stampTextureRow, stampPreview)
   stampContent.append(uploadLabel, uploadInput, sheetCanvas, stampControls)
   
-  // Tools tab bar and panels
-  const toolsTabBar = document.createElement('div')
-  toolsTabBar.className = 'entities-tabs'
-  const stampTab = document.createElement('button')
-  stampTab.type = 'button'
-  stampTab.className = 'entities-tab is-active'
-  stampTab.textContent = 'Stamps'
-  stampTab.setAttribute('data-tab', 'stamp')
-  const settingsTab = document.createElement('button')
-  settingsTab.type = 'button'
-  settingsTab.className = 'entities-tab'
-  settingsTab.textContent = 'Settings'
-  settingsTab.setAttribute('data-tab', 'settings')
-  const paletteTab = document.createElement('button')
-  paletteTab.type = 'button'
-  paletteTab.className = 'entities-tab'
-  paletteTab.textContent = 'Colors'
-  paletteTab.setAttribute('data-tab', 'palette')
-  const backgroundTab = document.createElement('button')
-  backgroundTab.type = 'button'
-  backgroundTab.className = 'entities-tab'
-  backgroundTab.textContent = 'Background'
-  backgroundTab.setAttribute('data-tab', 'background')
-  toolsTabBar.append(stampTab, settingsTab, paletteTab, backgroundTab)
-  
-  const toolsTabPanels = document.createElement('div')
-  toolsTabPanels.className = 'entities-tab-panels'
-  
-  const stampTabPanel = document.createElement('div')
-  stampTabPanel.className = 'entities-tab-panel is-active'
-  stampTabPanel.setAttribute('data-panel', 'stamp')
-  stampTabPanel.append(stampContent)
-  
-  const settingsTabPanel = document.createElement('div')
-  settingsTabPanel.className = 'entities-tab-panel'
-  settingsTabPanel.setAttribute('data-panel', 'settings')
-  settingsTabPanel.append(settingsContent)
-  
-  const backgroundTabPanel = document.createElement('div')
-  backgroundTabPanel.className = 'entities-tab-panel'
-  backgroundTabPanel.setAttribute('data-panel', 'background')
-  backgroundTabPanel.append(bgSection)
-
-  const paletteTabPanel = document.createElement('div')
-  paletteTabPanel.className = 'entities-tab-panel'
-  paletteTabPanel.setAttribute('data-panel', 'palette')
   const paletteContent = document.createElement('div')
   paletteContent.className = 'panel-content'
   const paletteListEl = document.createElement('ul')
@@ -919,7 +960,6 @@ export function mountArtGridTool(containerElement) {
   paletteHint.style.margin = '8px 0 0'
   paletteHint.textContent = 'Define colors used when generating shapes. Leave empty to use default colors.'
   paletteContent.append(paletteListEl, paletteAddBtn, paletteImportBtn, paletteClearAllBtn, paletteImportInput, paletteHint)
-  paletteTabPanel.append(paletteContent)
 
   function renderPaletteList() {
     paletteListEl.innerHTML = ''
@@ -1023,26 +1063,46 @@ export function mountArtGridTool(containerElement) {
   })
   renderPaletteList()
   
-  toolsTabPanels.append(stampTabPanel, settingsTabPanel, paletteTabPanel, backgroundTabPanel)
-  
-  const toolsContent = document.createElement('div')
-  toolsContent.className = 'panel-content'
-  toolsContent.append(toolsTabBar, toolsTabPanels)
-  
-  const switchToolsTab = (tabId) => {
-    toolsTabBar.querySelectorAll('.entities-tab').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.getAttribute('data-tab') === tabId)
-    })
-    toolsTabPanels.querySelectorAll('.entities-tab-panel').forEach((panel) => {
-      panel.classList.toggle('is-active', panel.getAttribute('data-panel') === tabId)
-    })
-  }
-  stampTab.addEventListener('click', () => switchToolsTab('stamp'))
-  settingsTab.addEventListener('click', () => switchToolsTab('settings'))
-  paletteTab.addEventListener('click', () => switchToolsTab('palette'))
-  backgroundTab.addEventListener('click', () => switchToolsTab('background'))
-  
-  toolsPanel.append(toolsHeader, toolsContent)
+  const stampsPanel = document.createElement('div')
+  stampsPanel.className = 'panel collapsed'
+  const stampsHeader = document.createElement('button')
+  stampsHeader.className = 'panel-header'
+  stampsHeader.type = 'button'
+  stampsHeader.innerHTML = '<span class="panel-chevron">▼</span>Stamps'
+  stampsHeader.addEventListener('click', () => stampsPanel.classList.toggle('collapsed'))
+  stampsPanel.append(stampsHeader, stampContent)
+
+  const settingsPanel = document.createElement('div')
+  settingsPanel.className = 'panel collapsed'
+  const settingsHeader = document.createElement('button')
+  settingsHeader.className = 'panel-header'
+  settingsHeader.type = 'button'
+  settingsHeader.innerHTML = '<span class="panel-chevron">▼</span>Settings'
+  settingsHeader.addEventListener('click', () => settingsPanel.classList.toggle('collapsed'))
+  settingsPanel.append(settingsHeader, settingsContent)
+
+  const colorsPanel = document.createElement('div')
+  colorsPanel.className = 'panel collapsed'
+  const colorsHeader = document.createElement('button')
+  colorsHeader.className = 'panel-header'
+  colorsHeader.type = 'button'
+  colorsHeader.innerHTML = '<span class="panel-chevron">▼</span>Colors'
+  colorsHeader.addEventListener('click', () => colorsPanel.classList.toggle('collapsed'))
+  colorsPanel.append(colorsHeader, paletteContent)
+
+  const backgroundPanelContent = document.createElement('div')
+  backgroundPanelContent.className = 'panel-content'
+  backgroundPanelContent.append(bgSection)
+  const backgroundPanel = document.createElement('div')
+  backgroundPanel.className = 'panel collapsed'
+  const backgroundHeader = document.createElement('button')
+  backgroundHeader.className = 'panel-header'
+  backgroundHeader.type = 'button'
+  backgroundHeader.innerHTML = '<span class="panel-chevron">▼</span>Background'
+  backgroundHeader.addEventListener('click', () => backgroundPanel.classList.toggle('collapsed'))
+  backgroundPanel.append(backgroundHeader, backgroundPanelContent)
+
+  controls.append(stampsPanel, settingsPanel, colorsPanel, backgroundPanel)
 
   const randomizeBtn = document.createElement('button')
   randomizeBtn.type = 'button'
@@ -1071,6 +1131,19 @@ export function mountArtGridTool(containerElement) {
   saveDropdown.style.padding = '4px'
   saveDropdown.style.zIndex = '1001'
   saveDropdown.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'
+  const includeGridLabel = document.createElement('label')
+  includeGridLabel.style.display = 'flex'
+  includeGridLabel.style.alignItems = 'center'
+  includeGridLabel.style.gap = '8px'
+  includeGridLabel.style.marginBottom = '8px'
+  includeGridLabel.style.cursor = 'pointer'
+  const includeGridCheckbox = document.createElement('input')
+  includeGridCheckbox.type = 'checkbox'
+  includeGridCheckbox.id = 'ag-export-include-grid'
+  includeGridCheckbox.setAttribute('aria-label', 'Include background grid in export')
+  includeGridLabel.append(includeGridCheckbox, document.createTextNode('Include background grid'))
+  includeGridLabel.setAttribute('for', 'ag-export-include-grid')
+  saveDropdown.appendChild(includeGridLabel)
   ;['Export SVG', 'Export JPEG', 'Export PNG', 'Export all three'].forEach((label) => {
     const opt = document.createElement('button')
     opt.type = 'button'
@@ -1092,7 +1165,6 @@ export function mountArtGridTool(containerElement) {
   const stats = document.createElement('p')
   stats.className = 'floor-plan-stats'
   stats.textContent = saved?.statsText ?? ''
-  controls.append(toolsPanel)
   controlsContainer.appendChild(controls)
 
   const app = document.getElementById('app')
@@ -1139,7 +1211,8 @@ export function mountArtGridTool(containerElement) {
   const runExport = (which) => {
     closeSaveDropdown()
     const base = `art-grid-${Date.now()}`
-    const svgText = getExportReadySvg(latestSvg)
+    const includeGrid = includeGridCheckbox.checked
+    const svgText = getExportReadySvg(latestSvg, { includeGrid })
     if (which === 'svg') {
       downloadSvg(svgText, `${base}.svg`)
       status.textContent = 'SVG downloaded.'
@@ -1382,32 +1455,6 @@ export function mountArtGridTool(containerElement) {
     }
   })
 
-  const entitiesWrap = document.createElement('div')
-  entitiesWrap.className = 'floor-plan-entities'
-  
-  // Tab bar
-  const tabBar = document.createElement('div')
-  tabBar.className = 'entities-tabs'
-  const shapesTab = document.createElement('button')
-  shapesTab.type = 'button'
-  shapesTab.className = 'entities-tab is-active'
-  shapesTab.textContent = 'Shapes'
-  shapesTab.setAttribute('data-tab', 'shapes')
-  const layersTab = document.createElement('button')
-  layersTab.type = 'button'
-  layersTab.className = 'entities-tab'
-  layersTab.textContent = 'Layers'
-  layersTab.setAttribute('data-tab', 'layers')
-  tabBar.append(shapesTab, layersTab)
-  
-  // Tab panels container
-  const tabPanels = document.createElement('div')
-  tabPanels.className = 'entities-tab-panels'
-  
-  // Shapes panel (default active)
-  const shapesPanel = document.createElement('div')
-  shapesPanel.className = 'entities-tab-panel is-active'
-  shapesPanel.setAttribute('data-panel', 'shapes')
   const entityActions = document.createElement('div')
   entityActions.className = 'floor-plan-actions'
   const deleteEntityBtn = document.createElement('button')
@@ -1416,31 +1463,37 @@ export function mountArtGridTool(containerElement) {
   entityActions.append(deleteEntityBtn)
   const entitiesList = document.createElement('ul')
   entitiesList.className = 'floor-plan-entity-list'
-  shapesPanel.append(entityActions, entitiesList)
-  
-  // Layers panel
-  const layersPanel = document.createElement('div')
-  layersPanel.className = 'entities-tab-panel'
-  layersPanel.setAttribute('data-panel', 'layers')
+
+  const shapesPanelContent = document.createElement('div')
+  shapesPanelContent.className = 'panel-content'
+  shapesPanelContent.append(entityActions, entitiesList)
+
+  const shapesPanelFull = document.createElement('div')
+  shapesPanelFull.className = 'panel collapsed'
+  const shapesPanelHeader = document.createElement('button')
+  shapesPanelHeader.className = 'panel-header'
+  shapesPanelHeader.type = 'button'
+  shapesPanelHeader.innerHTML = '<span class="panel-chevron">▼</span>Shapes'
+  shapesPanelHeader.addEventListener('click', () => shapesPanelFull.classList.toggle('collapsed'))
+  shapesPanelFull.append(shapesPanelHeader, shapesPanelContent)
+
   const layersList = document.createElement('ul')
   layersList.className = 'floor-plan-entity-list'
-  layersPanel.append(layersList)
-  
-  tabPanels.append(shapesPanel, layersPanel)
-  entitiesWrap.append(tabBar, tabPanels)
-  entitiesContainer.appendChild(entitiesWrap)
-  
-  // Tab switching
-  const switchTab = (tabId) => {
-    tabBar.querySelectorAll('.entities-tab').forEach((btn) => {
-      btn.classList.toggle('is-active', btn.getAttribute('data-tab') === tabId)
-    })
-    tabPanels.querySelectorAll('.entities-tab-panel').forEach((panel) => {
-      panel.classList.toggle('is-active', panel.getAttribute('data-panel') === tabId)
-    })
-  }
-  shapesTab.addEventListener('click', () => switchTab('shapes'))
-  layersTab.addEventListener('click', () => switchTab('layers'))
+
+  const layersPanelContent = document.createElement('div')
+  layersPanelContent.className = 'panel-content'
+  layersPanelContent.append(layersList)
+
+  const layersPanelFull = document.createElement('div')
+  layersPanelFull.className = 'panel collapsed'
+  const layersPanelHeader = document.createElement('button')
+  layersPanelHeader.className = 'panel-header'
+  layersPanelHeader.type = 'button'
+  layersPanelHeader.innerHTML = '<span class="panel-chevron">▼</span>Layers'
+  layersPanelHeader.addEventListener('click', () => layersPanelFull.classList.toggle('collapsed'))
+  layersPanelFull.append(layersPanelHeader, layersPanelContent)
+
+  entitiesContainer.append(shapesPanelFull, layersPanelFull)
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
@@ -1580,6 +1633,7 @@ export function mountArtGridTool(containerElement) {
 
   function setGeneratingState(generating) {
     randomizeBtn.disabled = generating
+    generateNewBtn.disabled = generating
     saveBtn.disabled = generating
     deleteEntityBtn.disabled = generating
   }
@@ -2350,9 +2404,34 @@ export function mountArtGridTool(containerElement) {
 
   window.addEventListener('keydown', (event) => {
     if (previewContainer.classList.contains('hidden')) return
+    const target = event.target
+    const inInput = target && (target.closest('input') || target.closest('textarea') || target.closest('select'))
     if ((event.key === 'Delete' || event.key === 'Backspace') && selectedShapeIds.size > 0) {
       deleteEntityBtn.click()
       event.preventDefault()
+      return
+    }
+    if (inInput) return
+    if (event.key === 'v' || event.key === 'V') {
+      if (setStampMode) setStampMode(false)
+      event.preventDefault()
+      return
+    }
+    if (event.key === 'b' || event.key === 'B') {
+      if (setStampMode) setStampMode(true)
+      event.preventDefault()
+      return
+    }
+    if (event.key === 'n' || event.key === 'N') {
+      centerCameraBtn.click()
+      event.preventDefault()
+      return
+    }
+    if (event.key === 'm' || event.key === 'M') {
+      seed.input.value = String(randomSeed())
+      generate()
+      event.preventDefault()
+      return
     }
   })
 
@@ -2423,6 +2502,11 @@ export function mountArtGridTool(containerElement) {
       seed.input.value = String(randomSeed())
       generate()
     }
+  })
+
+  generateNewBtn.addEventListener('click', () => {
+    seed.input.value = String(randomSeed())
+    generate()
   })
 
   generate()

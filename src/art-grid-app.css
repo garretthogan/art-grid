@@ -118,6 +118,16 @@ body.tui .floor-plan-controls {
   min-width: 0;
 }
 
+body.tui .floor-plan-controls .ag-generate-new-btn {
+  width: 100%;
+  margin-bottom: var(--tui-gap-sm);
+}
+
+body.tui .floor-plan-controls .panel .panel-chevron,
+body.tui #controls-area .panel .panel-chevron {
+  display: inline-block;
+}
+
 body.tui .floor-plan-controls h2 {
   margin: 0 0 var(--tui-gap-sm);
   font-size: 1rem;
