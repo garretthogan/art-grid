@@ -2509,5 +2509,5 @@ export function mountArtGridTool(containerElement) {
     generate()
   })
 
-  generate()
+  // First generate runs from loadStampSheet's img.onload once the stamp sheet is ready
 }
