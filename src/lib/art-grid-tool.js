@@ -443,6 +443,10 @@ export function mountArtGridTool(containerElement) {
   let selectedShapeIds = new Set()
   let selectedLayer = null
   let dragState = null
+  const MAX_UNDO = 50
+  const undoStack = []
+  const redoStack = []
+  let stateBeforeDrag = null
   let isGenerating = false
   let stampMode = false
   let stampShape = null
@@ -523,6 +527,7 @@ export function mountArtGridTool(containerElement) {
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
                 try {
+                  pushUndoState()
                   const colors = getColorsForGeneration()
                   const randomColor = colors[Math.floor(Math.random() * colors.length)]
                   const newShape = createStampShape(svgPoint.x, svgPoint.y, stampShape, randomColor)
@@ -788,6 +793,7 @@ export function mountArtGridTool(containerElement) {
   function applyBackground() {
     const svg = previewContent.querySelector('svg')
     if (!svg) return
+    pushUndoState()
     const metadata = decodeSvgMetadata(svg)
     if (!metadata) return
     const baseViewBox = readBaseViewBox(svg)
@@ -2072,7 +2078,7 @@ export function mountArtGridTool(containerElement) {
         if (!id || !shape || !point) return
         
         const startAngle = Math.atan2(point.y - shape.y, point.x - shape.x) * (180 / Math.PI)
-        
+        stateBeforeDrag = getCurrentState()
         dragState = {
           kind: 'rotate',
           id,
@@ -2100,7 +2106,7 @@ export function mountArtGridTool(containerElement) {
         const startDistance = Math.sqrt(
           Math.pow(point.x - shape.x, 2) + Math.pow(point.y - shape.y, 2)
         )
-        
+        stateBeforeDrag = getCurrentState()
         dragState = {
           kind: 'scale',
           id,
@@ -2154,6 +2160,7 @@ export function mountArtGridTool(containerElement) {
           updateSelection()
         }
         
+        stateBeforeDrag = getCurrentState()
         dragState = {
           kind: 'shape',
           id,
@@ -2306,6 +2313,10 @@ export function mountArtGridTool(containerElement) {
         }
       }
       
+      if (stateBeforeDrag != null && (dragState.kind === 'shape' || dragState.kind === 'rotate' || dragState.kind === 'scale')) {
+        pushUndoState(stateBeforeDrag)
+        stateBeforeDrag = null
+      }
       dragState = null
       persistMetadata(svg, metadata)
       updateSelection()
@@ -2317,6 +2328,30 @@ export function mountArtGridTool(containerElement) {
       event.preventDefault()
       zoomAtPointer(event)
     }
+  }
+
+  function getCurrentState() {
+    const el = previewContent.querySelector('svg')
+    return {
+      svg: el ? el.outerHTML : latestSvg,
+      viewBox: el ? el.getAttribute('viewBox') : null,
+    }
+  }
+
+  function pushUndoState(state) {
+    const toPush = state ?? getCurrentState()
+    if (!toPush.svg) return
+    undoStack.push(toPush)
+    if (undoStack.length > MAX_UNDO) undoStack.shift()
+    redoStack.length = 0
+  }
+
+  function applyState(state) {
+    latestSvg = state.svg
+    const el = setSvgContent(state.svg)
+    if (el && state.viewBox != null && state.viewBox !== '') el.setAttribute('viewBox', state.viewBox)
+    bindSvgInteractions()
+    updateSelection()
   }
 
   function setLoadingOverlay(visible) {
@@ -2334,6 +2369,7 @@ export function mountArtGridTool(containerElement) {
       setGeneratingState(false)
       return
     }
+    pushUndoState()
     setLoadingOverlay(true)
     const spreadRaw = parseFloat(spreadRow.input.value)
     const spread = Number.isFinite(spreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, spreadRaw)) : spreadDefault
@@ -2410,6 +2446,7 @@ export function mountArtGridTool(containerElement) {
     if (!metadata) return
     metadata.shapes = Array.isArray(metadata.shapes) ? metadata.shapes : []
     if (selectedShapeIds.size > 0) {
+      pushUndoState()
       const currentViewBoxRaw = svg.getAttribute('viewBox')
       selectedShapeIds.forEach(id => {
         metadata.shapes = metadata.shapes.filter((entry) => entry.id !== id)
@@ -2442,6 +2479,29 @@ export function mountArtGridTool(containerElement) {
     if (previewContainer.classList.contains('hidden')) return
     const target = event.target
     const inInput = target && (target.closest('input') || target.closest('textarea') || target.closest('select'))
+    const mod = event.metaKey || event.ctrlKey
+    if (mod && event.key === 'z') {
+      if (inInput) return
+      event.preventDefault()
+      if (event.shiftKey) {
+        if (redoStack.length > 0) {
+          const current = getCurrentState()
+          if (current.svg) {
+            undoStack.push(current)
+            if (undoStack.length > MAX_UNDO) undoStack.shift()
+          }
+          applyState(redoStack.pop())
+          status.textContent = 'Redo.'
+        }
+      } else {
+        if (undoStack.length > 0) {
+          redoStack.push(getCurrentState())
+          applyState(undoStack.pop())
+          status.textContent = 'Undo.'
+        }
+      }
+      return
+    }
     if ((event.key === 'Delete' || event.key === 'Backspace') && selectedShapeIds.size > 0) {
       deleteEntityBtn.click()
       event.preventDefault()
@@ -2483,6 +2543,7 @@ export function mountArtGridTool(containerElement) {
         showToast('Load a stamp sheet first.')
         return
       }
+      pushUndoState()
       setLoadingOverlay(true)
       // Yield so the browser paints the loading overlay before we block the main thread
       requestAnimationFrame(() => {
