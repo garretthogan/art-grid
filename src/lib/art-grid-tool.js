@@ -2001,11 +2001,19 @@ export function mountArtGridTool(containerElement) {
         updateHoverOutline(e.target)
       }
     })
+    let hoverRafId = null
+    let lastHoverTarget = null
     svg.addEventListener('pointermove', (e) => {
       if (stampMode && stampShape) {
         clearHoverOutline()
       } else {
-        updateHoverOutline(e.target)
+        lastHoverTarget = e.target
+        if (hoverRafId == null) {
+          hoverRafId = requestAnimationFrame(() => {
+            hoverRafId = null
+            if (lastHoverTarget != null) updateHoverOutline(lastHoverTarget)
+          })
+        }
       }
     })
     svg.addEventListener('pointerout', (e) => {
@@ -2051,13 +2059,6 @@ export function mountArtGridTool(containerElement) {
         height: nextHeight,
       }
       svg.setAttribute('viewBox', `${nextViewBox.minX} ${nextViewBox.minY} ${nextViewBox.width} ${nextViewBox.height}`)
-      const currentViewBoxRaw = svg.getAttribute('viewBox')
-      persistMetadata(svg, metadata)
-      const refreshedSvg = setSvgContent(latestSvg)
-      if (refreshedSvg && currentViewBoxRaw) {
-        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-      }
-      bindSvgInteractions()
     }
 
     svg.onpointerdown = (event) => {
@@ -2183,18 +2184,29 @@ export function mountArtGridTool(containerElement) {
       event.preventDefault()
     }
 
+    let lastPanClientX = 0
+    let lastPanClientY = 0
+    let panRafId = null
     svg.onpointermove = (event) => {
       if (!dragState) return
       if (dragState.kind === 'pan') {
-        const delta = toViewBoxDelta(
-          event.clientX - dragState.startClientX,
-          event.clientY - dragState.startClientY
-        )
-        if (!delta) return
-        svg.setAttribute(
-          'viewBox',
-          `${dragState.startViewBox.minX - delta.x} ${dragState.startViewBox.minY - delta.y} ${dragState.startViewBox.width} ${dragState.startViewBox.height}`
-        )
+        lastPanClientX = event.clientX
+        lastPanClientY = event.clientY
+        if (panRafId == null) {
+          panRafId = requestAnimationFrame(() => {
+            panRafId = null
+            if (!dragState || dragState.kind !== 'pan') return
+            const delta = toViewBoxDelta(
+              lastPanClientX - dragState.startClientX,
+              lastPanClientY - dragState.startClientY
+            )
+            if (!delta) return
+            svg.setAttribute(
+              'viewBox',
+              `${dragState.startViewBox.minX - delta.x} ${dragState.startViewBox.minY - delta.y} ${dragState.startViewBox.width} ${dragState.startViewBox.height}`
+            )
+          })
+        }
         return
       }
       if (dragState.kind === 'rotate') {
@@ -2277,7 +2289,6 @@ export function mountArtGridTool(containerElement) {
         dragState.element.setAttribute('transform', transform)
         dragState.element.setAttribute('data-plan-x', String(shape.x))
         dragState.element.setAttribute('data-plan-y', String(shape.y))
-        updateSelection()
       }
     }
 
