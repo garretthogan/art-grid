@@ -1832,6 +1832,9 @@ export function mountArtGridTool(containerElement) {
       rotateGizmo.style.cursor = 'grab'
       rotateGizmo.style.pointerEvents = 'all'
       rotateGizmo.setAttribute('data-rotation-gizmo', id)
+      const rotateTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title')
+      rotateTitle.textContent = 'Rotate (snaps to 45°; hold Shift for free rotation)'
+      rotateGizmo.appendChild(rotateTitle)
       outlineGroup.appendChild(rotateGizmo)
       
       // Add scale gizmo in bottom right corner
@@ -2200,7 +2203,12 @@ export function mountArtGridTool(containerElement) {
         
         const currentAngle = Math.atan2(point.y - dragState.centerY, point.x - dragState.centerX) * (180 / Math.PI)
         const angleDelta = currentAngle - dragState.startAngle
-        const newRotation = (dragState.startRotation + angleDelta) % 360
+        let newRotation = (dragState.startRotation + angleDelta) % 360
+        if (newRotation < 0) newRotation += 360
+        if (!event.shiftKey) {
+          newRotation = Math.round(newRotation / 45) * 45
+          newRotation = newRotation % 360
+        }
         
         const shape = metadata.shapes.find((entry) => entry.id === dragState.id)
         if (!shape) return
