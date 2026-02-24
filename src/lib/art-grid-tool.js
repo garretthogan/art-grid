@@ -604,6 +604,16 @@ export function mountArtGridTool(containerElement) {
   randomRotationLabel.append(randomRotationCheckbox, document.createTextNode('Random rotation'))
   randomRotationLabel.setAttribute('for', 'ag-random-rotation')
 
+  const spreadDefault = 1
+  const spreadMin = 0.5
+  const spreadMax = 2.5
+  const spreadStep = 0.1
+  const savedSpread = saved?.spread
+  const spreadValue = savedSpread != null && savedSpread >= spreadMin && savedSpread <= spreadMax ? savedSpread : spreadDefault
+  const spreadRow = createRangeField('Spread', 'ag-spread', spreadValue, spreadMin, spreadMax, spreadStep)
+  spreadRow.input.title = 'How far from center shapes are placed; above 1 allows shapes to extend past the canvas and be cut off by the border'
+  spreadRow.input.setAttribute('aria-label', 'Shape spread from center')
+
   // Background layer controls (own tab)
   const bgSection = document.createElement('div')
   bgSection.className = 'floor-plan-control'
@@ -800,6 +810,7 @@ export function mountArtGridTool(containerElement) {
     seed.row,
     canvasSizeRow,
     shapeCount.row,
+    spreadRow.row,
     minSize.row,
     maxSize.row,
     minTextureScale.row,
@@ -1639,6 +1650,8 @@ export function mountArtGridTool(containerElement) {
   }
 
   function persistSettings(statsText) {
+    const spreadVal = parseFloat(spreadRow.input.value)
+    const spreadToSave = Number.isFinite(spreadVal) ? Math.max(spreadMin, Math.min(spreadMax, spreadVal)) : spreadDefault
     window.localStorage.setItem(
       SETTINGS_KEY,
       JSON.stringify({
@@ -1646,6 +1659,7 @@ export function mountArtGridTool(containerElement) {
         width: readPositiveInt(width.input, 1200),
         height: readPositiveInt(height.input, 2400),
         shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
+        spread: spreadToSave,
         minSize: readBoundedInt(minSize.input, 8, 2, 100),
         maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
         minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
@@ -2302,11 +2316,14 @@ export function mountArtGridTool(containerElement) {
       return
     }
     setLoadingOverlay(true)
+    const spreadRaw = parseFloat(spreadRow.input.value)
+    const spread = Number.isFinite(spreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, spreadRaw)) : spreadDefault
     const options = {
       seed: readPositiveInt(seed.input, Date.now()),
       width: readPositiveInt(width.input, 1200),
       height: readPositiveInt(height.input, 2400),
       shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
+      spread,
       minSize: readBoundedInt(minSize.input, 8, 2, 100),
       maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
       minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
@@ -2457,11 +2474,14 @@ export function mountArtGridTool(containerElement) {
             const canvasHeight = readPositiveInt(height.input, 2400)
             const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
             const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
+            const layerSpreadRaw = parseFloat(spreadRow.input.value)
+            const layerSpread = Number.isFinite(layerSpreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, layerSpreadRaw)) : spreadDefault
             const layerOptions = {
               seed: randomSeed(),
               width: canvasWidth,
               height: canvasHeight,
               shapeCount: layerShapes.length,
+              spread: layerSpread,
               minSize: readBoundedInt(minSize.input, 8, 2, 100),
               maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
               minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,

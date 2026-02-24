@@ -12,6 +12,7 @@ const DEFAULT_OPTIONS = {
   minTextureScale: 0.5,
   maxTextureScale: 2,
   randomRotation: true,
+  spread: 1,
   patterns: ['solid', 'hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes'],
   colors: ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff'],
 };
@@ -39,13 +40,13 @@ function generateShape(rng, options, bounds) {
   const useStamps = Array.isArray(stamps) && stamps.length > 0;
 
   const size = randomInt(rng, options.minSize, options.maxSize);
-  const halfSize = size / 2;
-  const minX = halfSize;
-  const maxX = bounds.width - halfSize;
-  const minY = halfSize;
-  const maxY = bounds.height - halfSize;
-  const x = minX + rng() * (maxX - minX);
-  const y = minY + rng() * (maxY - minY);
+  const spread = Math.max(0.1, Number(options.spread) || 1);
+  const centerX = bounds.width / 2;
+  const centerY = bounds.height / 2;
+  const halfSide = Math.min(bounds.width, bounds.height) / 2;
+  const extent = halfSide * spread;
+  const x = centerX + (2 * rng() - 1) * extent;
+  const y = centerY + (2 * rng() - 1) * extent;
   const color = randomChoice(rng, options.colors);
   const pattern = randomChoice(rng, options.patterns);
   const rotation = options.randomRotation !== false ? rng() * 360 : 0;
