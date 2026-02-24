@@ -48,8 +48,8 @@ const SETTINGS_KEY = 'artGrid.settings'
 const DEFAULT_COLORS = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
 const MAX_PALETTE_COLORS_FROM_IMAGE = 32
 
-/** Editor canvas is rendered at most this many units on the smaller axis to reduce memory; export uses full resolution. */
-const EDITOR_MAX_DIM = 64
+/** Editor canvas is rendered at most this many units on the smaller axis; higher = more detail in preview, export uses full resolution. */
+const EDITOR_MAX_DIM = 128
 
 /**
  * @param {number} exportW
@@ -259,6 +259,22 @@ function randomSeed() {
 const EXPORT_GRID_MAJOR_DIVISIONS = 12
 const EXPORT_GRID_FINE_PER_MAJOR = 5
 
+/** Infer pattern name from a <pattern> element in the editor SVG so export matches what's displayed. */
+function inferPatternFromDef(svgEl, patternId) {
+  const pattern = svgEl.querySelector(`#${CSS.escape(patternId)}`)
+  if (!pattern) return null
+  const hasRotate = (pattern.getAttribute('patternTransform') || '').includes('rotate(45)')
+  const lines = pattern.querySelectorAll('line')
+  const rects = pattern.querySelectorAll('rect')
+  const circles = pattern.querySelectorAll('circle')
+  if (circles.length >= 1) return 'dots'
+  if (lines.length === 1 && hasRotate) return 'hatch'
+  if (lines.length >= 2) return 'cross-hatch'
+  if (rects.length >= 2) return 'checkerboard'
+  if (rects.length === 1) return 'stripes'
+  return null
+}
+
 function getExportReadySvg(svgText, options = {}) {
   const { includeGrid = false, exportWidth, exportHeight } = options
   const parser = new DOMParser()
@@ -283,7 +299,11 @@ function getExportReadySvg(svgText, options = {}) {
         if (isSolidColor) {
           return { ...rest, pattern: 'solid', color: fillAttr }
         }
-        return { ...rest, pattern: rest.pattern || 'solid' }
+        const urlMatch = fillAttr && fillAttr.match(/url\s*\(\s*#([^)]+)\s*\)/)
+        const patternId = urlMatch?.[1]
+        const inferred = patternId ? inferPatternFromDef(svg, patternId) : null
+        const pattern = inferred || rest.pattern || 'solid'
+        return { ...rest, pattern }
       })
       const grid = {
         meta: { width: vw, height: vh, seed: metadata.seed ?? 0, shapeCount: shapesForExport.length },
@@ -431,7 +451,9 @@ function downloadSvgAsRaster(svgText, mimeType, extension, fileNameBase) {
   return new Promise((resolve, reject) => {
     const base = fileNameBase || `art-grid-${Date.now()}`
     const dims = parseSvgDimensions(svgText)
-    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
+    // Rewrite pattern IDs so canvas drawImage resolves url(#...) inside the SVG, not the host page
+    const rasterSvgText = svgText.replace(/\bid="pattern-(\d+)"/g, 'id="ag-raster-pattern-$1"').replace(/url\(#pattern-(\d+)\)/g, 'url(#ag-raster-pattern-$1)')
+    const blob = new Blob([rasterSvgText], { type: 'image/svg+xml;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const img = new Image()
     img.onload = () => {
@@ -1619,8 +1641,8 @@ export function mountArtGridTool(containerElement) {
   
   // Higher = smoother when scaling stamps up, but larger SVG and slower parse/render. 1 keeps path compact.
   const STAMP_PATH_RESOLUTION = 1
-  // Max dimension for stamp path while editing; reduces path commands for faster render. Full-res path used on export.
-  const EDITOR_STAMP_PATH_MAX = 32
+  // Max dimension for stamp path while editing; higher = clearer stamp preview. Full-res path used on export.
+  const EDITOR_STAMP_PATH_MAX = 64
 
   const READBACK_CONTEXT_OPTIONS = { willReadFrequently: true }
 

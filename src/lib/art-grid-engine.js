@@ -167,44 +167,42 @@ function createBackgroundStampPatternDef(background, id, width, height) {
   return `<pattern id="${id}" width="${cellW}" height="${cellH}" patternUnits="userSpaceOnUse"><g transform="scale(${scale})"><path d="${stampPath}" fill="${color}" stroke="none" shape-rendering="crispEdges" /></g></pattern>`;
 }
 
-const REFERENCE_SIZE = 50;
+// Pattern tile size as fraction of shape bbox (0.1 = 10 repetitions per shape). Same in editor and export.
+const PATTERN_TILE_FRAC = 0.1;
+const PATTERN_STROKE_FRAC = 0.02;
 
 function createPatternDef(shape, id) {
-  let textureScale = shape.textureScale ?? 1;
-  // Stamp shapes: scale pattern with shape size so larger stamps get finer texture (more repetitions)
-  if (shape.type === 'stamp' && shape.size != null && shape.size > 0) {
-    textureScale = textureScale * (REFERENCE_SIZE / Math.max(shape.size, 1));
-  }
-  const patternSize = 4 * textureScale;
-  const strokeWidth = 0.5 * textureScale;
-  
+  const tile = PATTERN_TILE_FRAC;
+  const sw = PATTERN_STROKE_FRAC;
+  const c = shape.color;
+
   switch (shape.pattern) {
     case 'hatch':
       return `
-<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-  <line x1="0" y1="0" x2="0" y2="${patternSize}" stroke="${shape.color}" stroke-width="${strokeWidth}" />
+<pattern id="${id}" x="0" y="0" width="${tile}" height="${tile}" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" patternTransform="rotate(45)">
+  <line x1="0.5" y1="0" x2="0.5" y2="1" stroke="${c}" stroke-width="${sw}" />
 </pattern>`;
     case 'cross-hatch':
       return `
-<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse">
-  <line x1="0" y1="0" x2="${patternSize}" y2="${patternSize}" stroke="${shape.color}" stroke-width="${strokeWidth}" />
-  <line x1="${patternSize}" y1="0" x2="0" y2="${patternSize}" stroke="${shape.color}" stroke-width="${strokeWidth}" />
+<pattern id="${id}" x="0" y="0" width="${tile}" height="${tile}" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox">
+  <line x1="0" y1="0" x2="1" y2="1" stroke="${c}" stroke-width="${sw}" />
+  <line x1="1" y1="0" x2="0" y2="1" stroke="${c}" stroke-width="${sw}" />
 </pattern>`;
     case 'dots':
       return `
-<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse">
-  <circle cx="${patternSize / 2}" cy="${patternSize / 2}" r="${0.8 * textureScale}" fill="${shape.color}" />
+<pattern id="${id}" x="0" y="0" width="${tile}" height="${tile}" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox">
+  <circle cx="0.5" cy="0.5" r="${0.35}" fill="${c}" />
 </pattern>`;
     case 'checkerboard':
       return `
-<pattern id="${id}" width="${patternSize * 2}" height="${patternSize * 2}" patternUnits="userSpaceOnUse">
-  <rect x="0" y="0" width="${patternSize}" height="${patternSize}" fill="${shape.color}" />
-  <rect x="${patternSize}" y="${patternSize}" width="${patternSize}" height="${patternSize}" fill="${shape.color}" />
+<pattern id="${id}" x="0" y="0" width="${tile}" height="${tile}" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox">
+  <rect x="0" y="0" width="0.5" height="0.5" fill="${c}" />
+  <rect x="0.5" y="0.5" width="0.5" height="0.5" fill="${c}" />
 </pattern>`;
     case 'stripes':
       return `
-<pattern id="${id}" width="${patternSize}" height="${patternSize}" patternUnits="userSpaceOnUse">
-  <rect x="0" y="0" width="${patternSize / 2}" height="${patternSize}" fill="${shape.color}" />
+<pattern id="${id}" x="0" y="0" width="${tile}" height="${tile}" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox">
+  <rect x="0" y="0" width="0.5" height="1" fill="${c}" />
 </pattern>`;
     default:
       return '';
