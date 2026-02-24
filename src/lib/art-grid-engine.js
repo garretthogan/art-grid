@@ -58,7 +58,7 @@ function generateShape(rng, options, bounds) {
 
   if (useStamps) {
     const stamp = stamps[randomInt(rng, 0, stamps.length - 1)];
-    return {
+    const shape = {
       type: 'stamp',
       x,
       y,
@@ -74,6 +74,12 @@ function generateShape(rng, options, bounds) {
       stampHeight: stamp.stampHeight,
       stampPathResolution: stamp.stampPathResolution,
     };
+    if (stamp.stampPathEditor != null) {
+      shape.stampPathEditor = stamp.stampPathEditor;
+      shape.stampWidthEditor = stamp.stampWidthEditor;
+      shape.stampHeightEditor = stamp.stampHeightEditor;
+    }
+    return shape;
   }
 
   const shapeType = randomChoice(rng, ['rect', 'circle', 'rect', 'circle']);
@@ -216,22 +222,28 @@ function renderShape(shape, index) {
   const halfSize = shape.size / 2;
   const hitArea = `<rect class="art-shape-hit-area" x="${-halfSize}" y="${-halfSize}" width="${shape.size}" height="${shape.size}" fill="white" fill-opacity="0.001" pointer-events="all" />`;
 
-  // Handle stamp shapes (with optional texture pattern)
+  // Handle stamp shapes (with optional texture pattern). Use low-res path when present (editing); full-res used on export.
   if (shape.type === 'stamp' && shape.stampPath) {
-    const res = shape.stampPathResolution || 1
-    const scale = (shape.size / Math.max(shape.stampWidth, shape.stampHeight)) * res
-    const centerX = shape.stampWidth / (2 * res)
-    const centerY = shape.stampHeight / (2 * res)
-    const stampFill = shape.pattern === 'solid' ? shape.color : `url(#${patternId})`
-    const stampStroke = shape.pattern === 'solid' ? 'none' : shape.color
-    const stampStrokeWidth = shape.pattern === 'solid' ? 0 : 0.25
-    const strokeAttrs = shape.pattern === 'solid'
+    const useEditorPath = shape.stampPathEditor != null && shape.stampWidthEditor != null && shape.stampHeightEditor != null
+    const pathD = useEditorPath ? shape.stampPathEditor : shape.stampPath
+    const w = useEditorPath ? shape.stampWidthEditor : shape.stampWidth
+    const h = useEditorPath ? shape.stampHeightEditor : shape.stampHeight
+    const res = useEditorPath ? 1 : (shape.stampPathResolution || 1)
+    const scale = (shape.size / Math.max(w, h)) * res
+    const centerX = w / (2 * res)
+    const centerY = h / (2 * res)
+    const knownPatterns = ['solid', 'hatch', 'cross-hatch', 'dots', 'checkerboard', 'stripes']
+    const stampPattern = knownPatterns.includes(shape.pattern) ? shape.pattern : 'solid'
+    const stampFill = stampPattern === 'solid' ? shape.color : `url(#${patternId})`
+    const stampStroke = stampPattern === 'solid' ? 'none' : shape.color
+    const stampStrokeWidth = stampPattern === 'solid' ? 0 : 0.25
+    const strokeAttrs = stampPattern === 'solid'
       ? 'stroke="none"'
       : `stroke="${stampStroke}" stroke-width="${stampStrokeWidth}" vector-effect="non-scaling-stroke"`
     return `
 <g class="art-shape" data-id="${shape.id}" data-layer="${layer}" data-plan-x="${shape.x}" data-plan-y="${shape.y}" transform="${transform}">
   ${hitArea}
-  <path d="${shape.stampPath}" fill="${stampFill}" ${strokeAttrs} shape-rendering="crispEdges" transform="translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})" />
+  <path d="${pathD}" fill="${stampFill}" ${strokeAttrs} shape-rendering="crispEdges" transform="translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})" />
 </g>`;
   }
   
@@ -292,6 +304,11 @@ export function renderArtGridSvg(grid, options = {}) {
         stampWidth: shape.stampWidth,
         stampHeight: shape.stampHeight,
         stampPathResolution: shape.stampPathResolution,
+        ...(shape.stampPathEditor != null && {
+          stampPathEditor: shape.stampPathEditor,
+          stampWidthEditor: shape.stampWidthEditor,
+          stampHeightEditor: shape.stampHeightEditor,
+        }),
       }),
     })),
   });

@@ -182,7 +182,7 @@ body.tui .floor-plan-preview {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border: 2px solid var(--tui-line-strong);
+  border: 1px solid var(--tui-line-strong);
   padding: var(--tui-pad-1);
   background: #2d2d2d;
 }

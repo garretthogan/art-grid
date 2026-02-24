@@ -48,6 +48,21 @@ const SETTINGS_KEY = 'artGrid.settings'
 const DEFAULT_COLORS = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
 const MAX_PALETTE_COLORS_FROM_IMAGE = 32
 
+/** Editor canvas is rendered at most this many units on the smaller axis to reduce memory; export uses full resolution. */
+const EDITOR_MAX_DIM = 64
+
+/**
+ * @param {number} exportW
+ * @param {number} exportH
+ * @returns {{ w: number, h: number }}
+ */
+function getEditorSize(exportW, exportH) {
+  const ew = Math.max(1, Math.min(4000, exportW))
+  const eh = Math.max(1, Math.min(4000, exportH))
+  const scale = Math.min(EDITOR_MAX_DIM / ew, EDITOR_MAX_DIM / eh)
+  return { w: Math.max(1, Math.round(ew * scale)), h: Math.max(1, Math.round(eh * scale)) }
+}
+
 /**
  * Extract a color palette from an image by sampling pixels, quantizing to merge
  * similar colors, and returning the most frequent colors as hex strings.
@@ -245,22 +260,57 @@ const EXPORT_GRID_MAJOR_DIVISIONS = 12
 const EXPORT_GRID_FINE_PER_MAJOR = 5
 
 function getExportReadySvg(svgText, options = {}) {
-  const { includeGrid = false } = options
+  const { includeGrid = false, exportWidth, exportHeight } = options
   const parser = new DOMParser()
-  const doc = parser.parseFromString(svgText, 'image/svg+xml')
-  const svg = doc.querySelector('svg')
+  let doc = parser.parseFromString(svgText, 'image/svg+xml')
+  let svg = doc.querySelector('svg')
   if (!svg) return svgText
+  const baseViewBoxRaw = svg.getAttribute('data-base-viewbox') || svg.getAttribute('viewBox')
+  const vb = baseViewBoxRaw ? baseViewBoxRaw.trim().split(/\s+/).map(Number) : [0, 0, 64, 64]
+  const [vx, vy, vw, vh] = vb.length >= 4 ? vb : [0, 0, 64, 64]
+  // When exporting at full resolution, re-render with full-res stamp paths (strip editor paths so engine uses stampPath).
+  // Preserve each stamp's visible fill: read the path's fill from the current SVG so export matches what's shown in the editor.
+  if (exportWidth != null && exportHeight != null && Number(exportWidth) > 0 && Number(exportHeight) > 0) {
+    const metadata = decodeSvgMetadata(svg)
+    if (metadata && Array.isArray(metadata.shapes) && metadata.shapes.length > 0) {
+      const shapesForExport = metadata.shapes.map((s) => {
+        if (s.type !== 'stamp') return { ...s }
+        const { stampPathEditor, stampWidthEditor, stampHeightEditor, ...rest } = s
+        const group = svg.querySelector(`.art-shape[data-id="${s.id}"]`)
+        const path = group?.querySelector('path')
+        const fillAttr = path?.getAttribute('fill')?.trim()
+        const isSolidColor = fillAttr && !fillAttr.startsWith('url(') && (fillAttr.startsWith('#') || fillAttr.startsWith('rgb'))
+        if (isSolidColor) {
+          return { ...rest, pattern: 'solid', color: fillAttr }
+        }
+        return { ...rest, pattern: rest.pattern || 'solid' }
+      })
+      const grid = {
+        meta: { width: vw, height: vh, seed: metadata.seed ?? 0, shapeCount: shapesForExport.length },
+        shapes: shapesForExport,
+        background: metadata.background ?? { color: '#000000', textureType: 'solid' },
+      }
+      const fullResSvgString = renderArtGridSvg(grid)
+      doc = parser.parseFromString(fullResSvgString, 'image/svg+xml')
+      svg = doc.querySelector('svg')
+      if (!svg) return svgText
+    }
+  }
   svg.querySelectorAll('.canvas-boundary, #selection-outlines, .art-shape-hit-area, .hover-outline, #hover-outlines, #stamp-preview').forEach((el) => el.remove())
   // Ensure bg rect has solid black fill when missing (default; user config from Background tool is preserved)
   const bgRect = svg.querySelector('.bg')
   if (bgRect && (!bgRect.getAttribute('fill') || bgRect.getAttribute('fill').trim() === '')) {
     bgRect.setAttribute('fill', '#000000')
   }
+  if (exportWidth != null && exportHeight != null && (Number(exportWidth) > 0 && Number(exportHeight) > 0)) {
+    const ew = Math.round(Number(exportWidth))
+    const eh = Math.round(Number(exportHeight))
+    svg.setAttribute('width', String(ew))
+    svg.setAttribute('height', String(eh))
+    svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`)
+    svg.setAttribute('data-base-viewbox', `0 0 ${vw} ${vh}`)
+  }
   if (includeGrid) {
-    // Use base viewBox only so grid is always full-canvas and even (current viewBox can be zoomed/panned and causes uneven cells)
-    const baseViewBoxRaw = svg.getAttribute('data-base-viewbox') || svg.getAttribute('viewBox')
-    const vb = baseViewBoxRaw ? baseViewBoxRaw.trim().split(/\s+/).map(Number) : [0, 0, 1200, 1200]
-    const [vx, vy, vw, vh] = vb.length >= 4 ? vb : [0, 0, 1200, 1200]
     // Per-axis spacing so we get exactly 12 even divisions and last line on the edge (no gaps/float errors)
     const majorSpacingX = vw / EXPORT_GRID_MAJOR_DIVISIONS
     const majorSpacingY = vh / EXPORT_GRID_MAJOR_DIVISIONS
@@ -362,41 +412,64 @@ function downloadSvg(svgText, fileName = `art-grid-${Date.now()}.svg`) {
 }
 
 function parseSvgDimensions(svgText) {
-  const vb = svgText.match(/viewBox=["']?\s*([\d.\s-]+)["']?/)?.[1]?.trim()?.split(/\s+/)
-  if (vb && vb.length >= 4) return { w: Number(vb[2]), h: Number(vb[3]) }
   const w = svgText.match(/width=["']?\s*([\d.]+)/)?.[1]
   const h = svgText.match(/height=["']?\s*([\d.]+)/)?.[1]
   if (w && h) return { w: Number(w), h: Number(h) }
+  const vb = svgText.match(/viewBox=["']?\s*([\d.\s-]+)["']?/)?.[1]?.trim()?.split(/\s+/)
+  if (vb && vb.length >= 4) return { w: Number(vb[2]), h: Number(vb[3]) }
   return { w: 1200, h: 1200 }
 }
 
+/**
+ * @param {string} svgText SVG string (may have width/height at export resolution)
+ * @param {string} mimeType
+ * @param {string} extension
+ * @param {string} [fileNameBase]
+ * @returns {Promise<void>}
+ */
 function downloadSvgAsRaster(svgText, mimeType, extension, fileNameBase) {
-  const base = fileNameBase || `art-grid-${Date.now()}`
-  const dims = parseSvgDimensions(svgText)
-  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const img = new Image()
-  img.onload = () => {
-    URL.revokeObjectURL(url)
-    const canvas = document.createElement('canvas')
-    canvas.width = dims.w
-    canvas.height = dims.h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.drawImage(img, 0, 0, dims.w, dims.h)
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `${base}.${extension}`
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(a.href)
-    }, mimeType, mimeType === 'image/jpeg' ? 0.92 : undefined)
-  }
-  img.onerror = () => URL.revokeObjectURL(url)
-  img.src = url
+  return new Promise((resolve, reject) => {
+    const base = fileNameBase || `art-grid-${Date.now()}`
+    const dims = parseSvgDimensions(svgText)
+    const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      const canvas = document.createElement('canvas')
+      canvas.width = dims.w
+      canvas.height = dims.h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        resolve()
+        return
+      }
+      ctx.drawImage(img, 0, 0, dims.w, dims.h)
+      canvas.toBlob(
+        (outBlob) => {
+          if (!outBlob) {
+            resolve()
+            return
+          }
+          const a = document.createElement('a')
+          a.href = URL.createObjectURL(outBlob)
+          a.download = `${base}.${extension}`
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          URL.revokeObjectURL(a.href)
+          resolve()
+        },
+        mimeType,
+        mimeType === 'image/jpeg' ? 0.92 : undefined
+      )
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Failed to load SVG for raster export'))
+    }
+    img.src = url
+  })
 }
 
 function loadSettings() {
@@ -476,6 +549,8 @@ export function mountArtGridTool(containerElement) {
   loadingOverlay.className = 'ag-loading-overlay'
   loadingOverlay.setAttribute('aria-hidden', 'true')
   loadingOverlay.innerHTML = '<span class="ag-loading-overlay-spinner" aria-hidden="true"></span><span class="ag-loading-overlay-text">Generating art grid…</span>'
+  const loadingOverlayTextEl = loadingOverlay.querySelector('.ag-loading-overlay-text')
+  const defaultLoadingOverlayText = 'Generating art grid…'
   const svgWrapper = document.createElement('div')
   svgWrapper.className = 'color-palette-svg-wrapper'
   previewContent.appendChild(loadingOverlay)
@@ -532,13 +607,18 @@ export function mountArtGridTool(containerElement) {
                   pushUndoState()
                   const colors = getColorsForGeneration()
                   const randomColor = colors[Math.floor(Math.random() * colors.length)]
-                  const newShape = createStampShape(svgPoint.x, svgPoint.y, stampShape, randomColor)
+                  const baseVb = readBaseViewBox(svg)
+                  const exportW = readPositiveInt(width.input, 1200)
+                  const exportH = readPositiveInt(height.input, 2400)
+                  const { w: stampW, h: stampH } = baseVb ? { w: baseVb.width, h: baseVb.height } : getEditorSize(exportW, exportH)
+                  const editorScale = Math.min(stampW / exportW, stampH / exportH)
+                  const newShape = createStampShape(svgPoint.x, svgPoint.y, stampShape, randomColor, editorScale)
                   metadata.shapes.push(newShape)
                   const currentViewBoxRaw = svg.getAttribute('viewBox')
                   const grid = {
                     meta: {
-                      width: readPositiveInt(width.input, 1200),
-                      height: readPositiveInt(height.input, 2400),
+                      width: stampW,
+                      height: stampH,
                       seed: readPositiveInt(seed.input, Date.now()),
                       shapeCount: metadata.shapes.length,
                     },
@@ -799,8 +879,11 @@ export function mountArtGridTool(containerElement) {
     const metadata = decodeSvgMetadata(svg)
     if (!metadata) return
     const baseViewBox = readBaseViewBox(svg)
-    const w = baseViewBox ? baseViewBox.width : readPositiveInt(width.input, 1200)
-    const h = baseViewBox ? baseViewBox.height : readPositiveInt(height.input, 2400)
+    const exportW = readPositiveInt(width.input, 1200)
+    const exportH = readPositiveInt(height.input, 2400)
+    const { w: editorW, h: editorH } = getEditorSize(exportW, exportH)
+    const w = baseViewBox ? baseViewBox.width : editorW
+    const h = baseViewBox ? baseViewBox.height : editorH
     metadata.background = getBackground()
     const grid = {
       meta: { width: w, height: h, seed: metadata.seed ?? readPositiveInt(seed.input, Date.now()), shapeCount: metadata.shapes.length },
@@ -1227,25 +1310,34 @@ export function mountArtGridTool(containerElement) {
     }
     saveDropdown.style.display = saveDropdown.style.display === 'none' ? 'block' : 'none'
   })
-  const runExport = (which) => {
+  const runExport = async (which) => {
     closeSaveDropdown()
-    const base = `art-grid-${Date.now()}`
+    const exportW = readPositiveInt(width.input, 1200)
+    const exportH = readPositiveInt(height.input, 2400)
     const includeGrid = includeGridCheckbox.checked
-    const svgText = getExportReadySvg(latestSvg, { includeGrid })
-    if (which === 'svg') {
-      downloadSvg(svgText, `${base}.svg`)
-      status.textContent = 'SVG downloaded.'
-    } else if (which === 'jpeg') {
-      downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
-      status.textContent = 'JPEG downloaded.'
-    } else if (which === 'png') {
-      downloadSvgAsRaster(svgText, 'image/png', 'png', base)
-      status.textContent = 'PNG downloaded.'
-    } else {
-      downloadSvg(svgText, `${base}.svg`)
-      downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
-      downloadSvgAsRaster(svgText, 'image/png', 'png', base)
-      status.textContent = 'SVG, JPEG, and PNG downloaded.'
+    const svgText = getExportReadySvg(latestSvg, { includeGrid, exportWidth: exportW, exportHeight: exportH })
+    const base = `art-grid-${Date.now()}`
+    setLoadingOverlay(true, 'Exporting…')
+    try {
+      if (which === 'svg') {
+        downloadSvg(svgText, `${base}.svg`)
+        status.textContent = 'SVG downloaded.'
+      } else if (which === 'jpeg') {
+        await downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
+        status.textContent = 'JPEG downloaded.'
+      } else if (which === 'png') {
+        await downloadSvgAsRaster(svgText, 'image/png', 'png', base)
+        status.textContent = 'PNG downloaded.'
+      } else {
+        downloadSvg(svgText, `${base}.svg`)
+        await downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
+        await downloadSvgAsRaster(svgText, 'image/png', 'png', base)
+        status.textContent = 'SVG, JPEG, and PNG downloaded.'
+      }
+    } catch (err) {
+      status.textContent = `Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+    } finally {
+      setLoadingOverlay(false)
     }
   }
   saveDropdown.querySelectorAll('button').forEach((opt, idx) => {
@@ -1525,8 +1617,10 @@ export function mountArtGridTool(containerElement) {
     setTimeout(() => toast.remove(), 2500)
   }
   
-  // Higher = smoother when scaling stamps up, but larger SVG and slower parse/render. 4 balances quality and performance.
+  // Higher = smoother when scaling stamps up, but larger SVG and slower parse/render. 1 keeps path compact.
   const STAMP_PATH_RESOLUTION = 1
+  // Max dimension for stamp path while editing; reduces path commands for faster render. Full-res path used on export.
+  const EDITOR_STAMP_PATH_MAX = 32
 
   const READBACK_CONTEXT_OPTIONS = { willReadFrequently: true }
 
@@ -1621,32 +1715,87 @@ export function mountArtGridTool(containerElement) {
         croppedCtx.drawImage(tempCanvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
         const stampPathNormal = bitmapToSvgPath(croppedCanvas, false, STAMP_PATH_RESOLUTION)
         const stampPathInverted = bitmapToSvgPath(croppedCanvas, true, STAMP_PATH_RESOLUTION)
-        if (stampPathNormal) pool.push({ stampPath: stampPathNormal, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION })
-        if (stampPathInverted) pool.push({ stampPath: stampPathInverted, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION })
+        const editorPathMax = Math.max(1, EDITOR_STAMP_PATH_MAX)
+        const scaleEditor = Math.min(1, editorPathMax / Math.max(cropWidth, cropHeight))
+        const editorW = Math.max(1, Math.round(cropWidth * scaleEditor))
+        const editorH = Math.max(1, Math.round(cropHeight * scaleEditor))
+        let stampPathEditorNormal = null
+        let stampPathEditorInverted = null
+        if (editorW * editorH < cropWidth * cropHeight) {
+          const smallCanvas = document.createElement('canvas')
+          smallCanvas.width = editorW
+          smallCanvas.height = editorH
+          const smallCtx = smallCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
+          if (smallCtx) {
+            smallCtx.imageSmoothingEnabled = false
+            smallCtx.drawImage(croppedCanvas, 0, 0, cropWidth, cropHeight, 0, 0, editorW, editorH)
+            stampPathEditorNormal = bitmapToSvgPath(smallCanvas, false, 1)
+            stampPathEditorInverted = bitmapToSvgPath(smallCanvas, true, 1)
+          }
+        }
+        const editorPathNormal = stampPathEditorNormal || stampPathNormal
+        const editorPathInverted = stampPathEditorInverted || stampPathInverted
+        const editorPathW = stampPathEditorNormal != null ? editorW : cropWidth
+        const editorPathH = stampPathEditorNormal != null ? editorH : cropHeight
+        if (stampPathNormal) pool.push({ stampPath: stampPathNormal, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION, stampPathEditor: editorPathNormal, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
+        if (stampPathInverted) pool.push({ stampPath: stampPathInverted, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION, stampPathEditor: editorPathInverted, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
       }
     }
     return pool
   }
 
-  function createStampShape(x, y, stampData, color) {
+  /** @param {number} [editorScale] Scale from export size to editor size (e.g. editorW/exportW); use 1 when already in editor coords. */
+  function createStampShape(x, y, stampData, color, editorScale = 1) {
     const scale = getStampScale()
-    const svgPath = bitmapToSvgPath(stampData.canvas, stampInvert, STAMP_PATH_RESOLUTION)
-    const rawSize = Math.max(stampData.width, stampData.height)
+    const cw = stampData.width ?? stampData.stampWidth
+    const ch = stampData.height ?? stampData.stampHeight
+    const rawSize = Math.max(cw, ch)
     const pattern = stampTextureSelect.value || 'solid'
+    let stampPath = stampData.stampPath
+    let stampPathEditor = stampData.stampPathEditor
+    let stampWidthEditor = stampData.stampWidthEditor
+    let stampHeightEditor = stampData.stampHeightEditor
+    if (stampData.canvas) {
+      stampPath = bitmapToSvgPath(stampData.canvas, stampInvert, STAMP_PATH_RESOLUTION)
+      if (!stampPath) return null
+      const editorPathMax = Math.max(1, EDITOR_STAMP_PATH_MAX)
+      const scaleEditor = Math.min(1, editorPathMax / Math.max(cw, ch))
+      const editorW = Math.max(1, Math.round(cw * scaleEditor))
+      const editorH = Math.max(1, Math.round(ch * scaleEditor))
+      if (editorW * editorH < cw * ch) {
+        const smallCanvas = document.createElement('canvas')
+        smallCanvas.width = editorW
+        smallCanvas.height = editorH
+        const smallCtx = smallCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
+        if (smallCtx) {
+          smallCtx.imageSmoothingEnabled = false
+          smallCtx.drawImage(stampData.canvas, 0, 0, cw, ch, 0, 0, editorW, editorH)
+          stampPathEditor = bitmapToSvgPath(smallCanvas, stampInvert, 1)
+          stampWidthEditor = editorW
+          stampHeightEditor = editorH
+        }
+      }
+      if (!stampPathEditor) {
+        stampPathEditor = stampPath
+        stampWidthEditor = cw
+        stampHeightEditor = ch
+      }
+    }
     return {
       type: 'stamp',
       x,
       y,
-      size: rawSize * scale,
+      size: rawSize * scale * editorScale,
       color,
       pattern,
       rotation: 0,
       layer: 'stamps',
       id: `shape-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      stampPath: svgPath,
-      stampWidth: stampData.width,
-      stampHeight: stampData.height,
+      stampPath,
+      stampWidth: cw,
+      stampHeight: ch,
       stampPathResolution: STAMP_PATH_RESOLUTION,
+      ...(stampPathEditor != null && { stampPathEditor, stampWidthEditor, stampHeightEditor }),
     }
   }
 
@@ -1799,11 +1948,11 @@ export function mountArtGridTool(containerElement) {
     const refSize = 1200
     const canvasSize = baseViewBox ? Math.min(baseViewBox.width, baseViewBox.height) : refSize
     const scale = canvasSize / refSize
-    const padding = Math.max(1, 4 * scale)
-    const outlineStrokeWidth = Math.max(0.5, 2 * scale)
-    const outlineDashLen = Math.max(1, 4 * scale)
-    const gizmoRadius = Math.max(2, 6 * scale)
-    const gizmoStrokeWidth = Math.max(0.5, 2 * scale)
+    const padding = Math.max(0.5, 1.5 * scale)
+    const outlineStrokeWidth = Math.max(0.25, 0.7 * scale)
+    const outlineDashLen = Math.max(0.5, 2 * scale)
+    const gizmoRadius = Math.max(1.5, 4 * scale)
+    const gizmoStrokeWidth = Math.max(0.25, 0.7 * scale)
 
     selectedShapeIds.forEach(id => {
       const shape = metadata.shapes.find(s => s.id === id)
@@ -1906,9 +2055,9 @@ export function mountArtGridTool(containerElement) {
         const refSize = 1200
         const canvasSize = Math.min(baseViewBox.width, baseViewBox.height)
         const scale = canvasSize / refSize
-        const strokeWidth = Math.max(0.5, 4 * scale)
-        const dashLen = Math.max(2, 12 * scale)
-        const gapLen = Math.max(2, 8 * scale)
+        const strokeWidth = Math.max(0.25, 1 * scale)
+        const dashLen = Math.max(1, 6 * scale)
+        const gapLen = Math.max(1, 4 * scale)
         const boundary = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
         boundary.classList.add('canvas-boundary')
         boundary.setAttribute('x', String(strokeWidth / 2))
@@ -1960,8 +2109,8 @@ export function mountArtGridTool(containerElement) {
       const refSize = 1200
       const canvasSize = baseViewBox ? Math.min(baseViewBox.width, baseViewBox.height) : refSize
       const scale = canvasSize / refSize
-      const strokeWidth = Math.max(0.5, 3 * scale)
-      const padding = Math.max(2, 4 * scale)
+      const strokeWidth = Math.max(0.25, 0.8 * scale)
+      const padding = Math.max(1, 2 * scale)
       const planX = parseFloat(shapeEl.getAttribute('data-plan-x')) || 0
       const planY = parseFloat(shapeEl.getAttribute('data-plan-y')) || 0
       const transformStr = shapeEl.getAttribute('transform') || ''
@@ -2267,11 +2416,14 @@ export function mountArtGridTool(containerElement) {
           }
         } else if (shape.type === 'stamp') {
           const path = dragState.shapeElement.querySelector('path')
-          if (path && shape.stampWidth && shape.stampHeight) {
-            const res = shape.stampPathResolution || 1
-            const scale = (newSize / Math.max(shape.stampWidth, shape.stampHeight)) * res
-            const centerX = shape.stampWidth / (2 * res)
-            const centerY = shape.stampHeight / (2 * res)
+          const useEditor = shape.stampPathEditor != null && shape.stampWidthEditor != null && shape.stampHeightEditor != null
+          const w = useEditor ? shape.stampWidthEditor : shape.stampWidth
+          const h = useEditor ? shape.stampHeightEditor : shape.stampHeight
+          if (path && w != null && h != null) {
+            const res = useEditor ? 1 : (shape.stampPathResolution || 1)
+            const scale = (newSize / Math.max(w, h)) * res
+            const centerX = w / (2 * res)
+            const centerY = h / (2 * res)
             path.setAttribute('transform', `translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})`)
           }
         } else {
@@ -2356,9 +2508,12 @@ export function mountArtGridTool(containerElement) {
     updateSelection()
   }
 
-  function setLoadingOverlay(visible) {
+  /** @param {boolean} visible - Show or hide overlay. @param {string} [message] - Optional message (e.g. "Exporting…"); when hiding, text resets to default. */
+  function setLoadingOverlay(visible, message) {
     loadingOverlay.classList.toggle('is-visible', visible)
     loadingOverlay.setAttribute('aria-hidden', String(!visible))
+    if (message !== undefined) loadingOverlayTextEl.textContent = message
+    else if (!visible) loadingOverlayTextEl.textContent = defaultLoadingOverlayText
   }
 
   async function generate() {
@@ -2373,16 +2528,20 @@ export function mountArtGridTool(containerElement) {
     }
     pushUndoState()
     setLoadingOverlay(true)
+    const exportW = readPositiveInt(width.input, 1200)
+    const exportH = readPositiveInt(height.input, 2400)
+    const { w: editorW, h: editorH } = getEditorSize(exportW, exportH)
     const spreadRaw = parseFloat(spreadRow.input.value)
     const spread = Number.isFinite(spreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, spreadRaw)) : spreadDefault
+    const scaleToEditor = Math.min(editorW / exportW, editorH / exportH)
     const options = {
       seed: readPositiveInt(seed.input, Date.now()),
-      width: readPositiveInt(width.input, 1200),
-      height: readPositiveInt(height.input, 2400),
+      width: editorW,
+      height: editorH,
       shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
       spread,
-      minSize: readBoundedInt(minSize.input, 8, 2, 100),
-      maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
+      minSize: Math.max(2, Math.round(readBoundedInt(minSize.input, 8, 2, 100) * scaleToEditor)),
+      maxSize: Math.max(4, Math.round(readBoundedInt(maxSize.input, 120, 10, 300) * scaleToEditor)),
       minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
       maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
       randomRotation: randomRotationCheckbox.checked,
@@ -2423,7 +2582,7 @@ export function mountArtGridTool(containerElement) {
         generatedSvg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`)
         latestSvg = generatedSvg.outerHTML
       }
-      const statsText = `Shapes: ${grid.meta.shapeCount} · Size: ${grid.meta.width}×${grid.meta.height}px`
+      const statsText = `Shapes: ${grid.meta.shapeCount} · Export size: ${exportW}×${exportH}px`
       stats.textContent = statsText
       persistSettings(statsText)
       selectedShapeIds.clear()
@@ -2455,10 +2614,12 @@ export function mountArtGridTool(containerElement) {
       })
       selectedShapeIds.clear()
       selectedLayer = null
+      const baseVb = readBaseViewBox(svg)
+      const { w: delW, h: delH } = baseVb ? { w: baseVb.width, h: baseVb.height } : getEditorSize(readPositiveInt(width.input, 1200), readPositiveInt(height.input, 2400))
       const grid = {
         meta: {
-          width: readPositiveInt(width.input, 1200),
-          height: readPositiveInt(height.input, 2400),
+          width: delW,
+          height: delH,
           seed: readPositiveInt(seed.input, Date.now()),
           shapeCount: metadata.shapes.length,
         },
@@ -2552,8 +2713,10 @@ export function mountArtGridTool(containerElement) {
         requestAnimationFrame(() => {
           try {
             const currentViewBoxRaw = svg.getAttribute('viewBox')
-            const canvasWidth = readPositiveInt(width.input, 1200)
-            const canvasHeight = readPositiveInt(height.input, 2400)
+            const exportW = readPositiveInt(width.input, 1200)
+            const exportH = readPositiveInt(height.input, 2400)
+            const { w: canvasWidth, h: canvasHeight } = getEditorSize(exportW, exportH)
+            const scaleToEditor = Math.min(canvasWidth / exportW, canvasHeight / exportH)
             const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
             const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
             const layerSpreadRaw = parseFloat(spreadRow.input.value)
@@ -2564,8 +2727,8 @@ export function mountArtGridTool(containerElement) {
               height: canvasHeight,
               shapeCount: layerShapes.length,
               spread: layerSpread,
-              minSize: readBoundedInt(minSize.input, 8, 2, 100),
-              maxSize: readBoundedInt(maxSize.input, 120, 10, 300),
+              minSize: Math.max(2, Math.round(readBoundedInt(minSize.input, 8, 2, 100) * scaleToEditor)),
+              maxSize: Math.max(4, Math.round(readBoundedInt(maxSize.input, 120, 10, 300) * scaleToEditor)),
               minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
               maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
               randomRotation: randomRotationCheckbox.checked,
