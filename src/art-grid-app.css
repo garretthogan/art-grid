@@ -507,35 +507,244 @@ body.tui #camera-controls > .panel {
   min-width: 0;
 }
 
-/* Mobile: control panel full width with solid grey background */
+/* Mobile: canvas top half, control panel bottom half, opens bottom-to-top, tabs stacked vertically */
 @media (max-width: 768px) {
-  body.tui #app.app-layout-row {
-    flex-direction: column;
+  body.tui {
+    overflow-x: hidden;
   }
 
-  body.tui #app.app-layout-row #controls-area {
+  body.tui #app.app-layout-row {
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    width: 100%;
+    max-width: 100vw;
     min-width: 0;
+  }
+
+  /* Canvas: top half of screen */
+  body.tui #app.app-layout-row #floor-plan-tool-root {
+    order: 0;
+    flex: 0 0 50%;
+    min-height: 0;
+    min-width: 0;
+    max-height: 50vh;
+    max-height: 50dvh;
+    width: 100%;
+  }
+
+  /* Control panel: in flow, full width, bottom half. Content above tab bar so it "opens" upward */
+  body.tui #app.app-layout-row #controls-area {
+    position: static;
+    top: auto;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    order: 1;
+    flex: 0 0 50%;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 50vh;
+    max-height: 50dvh;
+    height: auto;
     background: #2d2d2d;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-top: 2px solid var(--tui-line-strong);
+    border-right: 0;
+    box-sizing: border-box;
+  }
+
+  /* Collapsed: horizontal full-width bar – header row and button fill the whole bar so no black gap */
+  body.tui #app.app-layout-row #controls-area.collapsed .controls-area-header-row {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    width: 100%;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    align-items: stretch;
+  }
+
+  body.tui #app.app-layout-row #controls-area.collapsed .controls-area-header {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    justify-content: flex-start;
+    text-align: left;
+    padding: var(--tui-pad-2);
+    box-sizing: border-box;
+  }
+
+  body.tui #app.app-layout-row #controls-area.collapsed .controls-area-chevron {
+    transform: rotate(0deg);
+    margin-right: var(--tui-gap-sm);
+  }
+
+  /* Tab bar at bottom of panel (so panel content opens upward above it) */
+  body.tui #controls-area .controls-area-header-row {
+    order: 1;
+    flex-shrink: 0;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  body.tui #controls-area .controls-area-content {
+    order: 0;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   body.tui #app.app-layout-row #controls-area.collapsed {
-    width: 40px;
-    min-width: 40px;
+    flex: 0 0 48px;
+    max-height: 48px;
+    min-height: 48px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* When panel is collapsed, canvas takes remaining space */
+  body.tui #app.app-layout-row #controls-area.collapsed ~ #floor-plan-tool-root {
+    flex: 1 1 0;
+    max-height: none;
   }
 
   body.tui #app.app-layout-row #controls-area:not(.collapsed) {
+    flex: 0 0 50%;
+    max-height: 50vh;
+    max-height: 50dvh;
     width: 100%;
+    max-width: 100%;
   }
 
   body.tui #controls-area .controls-area-header {
     background: #2d2d2d;
+    flex-shrink: 0;
+    writing-mode: horizontal-tb;
+    width: 100%;
   }
 
   body.tui #controls-area .controls-area-header:hover {
     background: #3a3a3a;
   }
 
-  /* Hide tool buttons (top right) while control panel is open */
+  /* Solid background so bottom half is not black/transparent – full width */
+  body.tui #controls-area .controls-area-content,
+  body.tui #controls-area .controls-panels {
+    background: #2d2d2d !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Single scroll area: Generate + all panels + Shapes/Layers so everything is reachable */
+  body.tui #controls-area .controls-area-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Let content flow naturally so Generate and all tabs are in one scroll */
+  body.tui #controls-area .controls-area-content .controls-panels {
+    flex: 0 0 auto;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  body.tui #controls-area .floor-plan-controls-root {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Vertical stack: Generate on top, then Stamps, Settings, Colors, Background */
+  body.tui #controls-area .controls-panels,
+  body.tui #controls-area .floor-plan-controls-root,
+  body.tui #controls-area .floor-plan-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch;
+    gap: var(--tui-gap);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  body.tui #controls-area .floor-plan-controls {
+    flex: 0 0 auto;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  /* Generate button full width on top */
+  body.tui #controls-area .ag-generate-new-btn {
+    width: 100%;
+    flex: 0 0 auto;
+    margin-bottom: var(--tui-gap-sm);
+  }
+
+  /* Panels (Stamps, Settings, Colors, Background) full width, stacked vertically */
+  body.tui #controls-area .floor-plan-controls .panel {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+  }
+
+  body.tui #controls-area .floor-plan-controls .panel.collapsed .panel-header {
+    border-bottom: 0;
+  }
+
+  body.tui #controls-area .floor-plan-controls .panel-content {
+    max-height: none;
+  }
+
+  /* Shapes & Layers section below the main panels */
+  body.tui #controls-area #camera-controls {
+    flex-direction: column;
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Status/stats: top right on mobile */
+  body.tui .floor-plan-status-stats {
+    top: var(--tui-gap);
+    bottom: auto;
+    right: var(--tui-gap);
+    left: auto;
+  }
+
+  /* Mode toolbar (tools): bottom right on mobile */
+  body.tui .mode-toolbar {
+    top: auto;
+    bottom: var(--tui-gap);
+    right: var(--tui-gap);
+    left: auto;
+  }
+
+  /* Hide tool buttons while control panel is open */
   body.tui #app #controls-area:not(.collapsed) ~ .mode-toolbar {
     display: none;
   }
