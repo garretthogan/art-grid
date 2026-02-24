@@ -443,7 +443,9 @@ export function mountArtGridTool(containerElement) {
   let selectedShapeIds = new Set()
   let selectedLayer = null
   let dragState = null
-  const MAX_UNDO = 50
+  /* Use a smaller undo limit on narrow viewports to avoid memory pressure and tab crashes on mobile */
+  const MAX_UNDO =
+    typeof window !== 'undefined' && window.innerWidth <= 768 ? 12 : 50
   const undoStack = []
   const redoStack = []
   let stateBeforeDrag = null
