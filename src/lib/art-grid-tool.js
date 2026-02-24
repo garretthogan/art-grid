@@ -48,8 +48,8 @@ const SETTINGS_KEY = 'artGrid.settings'
 const DEFAULT_COLORS = ['#00ff00', '#ff0000', '#00ffff', '#ff00ff', '#ffff00', '#ffffff', '#0000ff']
 const MAX_PALETTE_COLORS_FROM_IMAGE = 32
 
-/** Editor canvas is rendered at most this many units on the smaller axis; higher = more detail in preview, export uses full resolution. */
-const EDITOR_MAX_DIM = 128
+/** Editor canvas is rendered at most this many units on the smaller axis to reduce memory; export uses full resolution. */
+const EDITOR_MAX_DIM = 64
 
 /**
  * @param {number} exportW
@@ -617,12 +617,13 @@ export function mountArtGridTool(containerElement) {
           if (metadata) {
             e.stopPropagation()
             e.preventDefault()
+            setLoadingOverlay(true, 'Placing stamp…')
             const prevBodyCursor = document.body.style.getPropertyValue('cursor') || document.body.style.cursor
             document.body.style.setProperty('cursor', 'wait', 'important')
             preview.classList.add('stamp-placing')
             // Force cursor refresh (some browsers only update on mouse move)
             document.dispatchEvent(new MouseEvent('mousemove', { clientX: e.clientX, clientY: e.clientY, bubbles: true }))
-            // Double rAF so the browser paints the wait cursor before we block the main thread
+            // Double rAF so the browser paints the overlay before we block the main thread
             requestAnimationFrame(() => {
               requestAnimationFrame(() => {
                 try {
@@ -656,6 +657,7 @@ export function mountArtGridTool(containerElement) {
                   updateSelection()
                   status.textContent = 'Stamp placed.'
                 } finally {
+                  setLoadingOverlay(false)
                   document.body.style.removeProperty('cursor')
                   if (prevBodyCursor) document.body.style.cursor = prevBodyCursor
                   preview.classList.remove('stamp-placing')
@@ -763,7 +765,7 @@ export function mountArtGridTool(containerElement) {
       background.color = parsed
       bgColorInput.value = parsed
       bgHexInput.value = parsed
-      applyBackground()
+      scheduleDeferredApplyBackground(true)
     } else {
       bgHexInput.value = bgColorInput.value
     }
@@ -824,7 +826,10 @@ export function mountArtGridTool(containerElement) {
   bgTextureScaleRow.input.addEventListener('input', () => {
     background.textureScale = parseFloat(bgTextureScaleRow.input.value) || 1
     bgTextureScaleRow.row.querySelector('strong').textContent = bgTextureScaleRow.input.value
-    applyBackground()
+  })
+  bgTextureScaleRow.input.addEventListener('change', () => {
+    background.textureScale = parseFloat(bgTextureScaleRow.input.value) || 1
+    scheduleDeferredApplyBackground(true)
   })
   const bgStampRow = document.createElement('div')
   bgStampRow.style.display = 'none'
@@ -849,9 +854,17 @@ export function mountArtGridTool(containerElement) {
   bgColorInput.addEventListener('input', () => {
     background.color = bgColorInput.value
     bgHexInput.value = bgColorInput.value
-    applyBackground()
   })
-  bgTypeSolid.addEventListener('click', () => { background.textureType = 'solid'; updateBgTypeUI(); applyBackground() })
+  bgColorInput.addEventListener('change', () => {
+    background.color = bgColorInput.value
+    bgHexInput.value = bgColorInput.value
+    scheduleDeferredApplyBackground(true)
+  })
+  bgTypeSolid.addEventListener('click', () => {
+    background.textureType = 'solid'
+    updateBgTypeUI()
+    scheduleDeferredApplyBackground(true)
+  })
   bgTypePattern.addEventListener('click', () => {
     background.textureType = 'pattern'
     background.pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)]
@@ -863,10 +876,17 @@ export function mountArtGridTool(containerElement) {
     }
     bgPatternSelect.value = background.pattern
     updateBgTypeUI()
-    applyBackground()
+    scheduleDeferredApplyBackground(true)
   })
-  bgTypeStamp.addEventListener('click', () => { background.textureType = 'stamp'; updateBgTypeUI(); applyBackground() })
-  bgPatternSelect.addEventListener('change', () => { background.pattern = bgPatternSelect.value; applyBackground() })
+  bgTypeStamp.addEventListener('click', () => {
+    background.textureType = 'stamp'
+    updateBgTypeUI()
+    scheduleDeferredApplyBackground(true)
+  })
+  bgPatternSelect.addEventListener('change', () => {
+    background.pattern = bgPatternSelect.value
+    scheduleDeferredApplyBackground(true)
+  })
   bgRandomBtn.addEventListener('click', () => {
     background.pattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)]
     bgPatternSelect.value = background.pattern
@@ -874,7 +894,7 @@ export function mountArtGridTool(containerElement) {
     background.color = colors[Math.floor(Math.random() * colors.length)]
     bgColorInput.value = background.color
     bgHexInput.value = background.color
-    applyBackground()
+    scheduleDeferredApplyBackground(true)
   })
   bgUseStampBtn.addEventListener('click', () => {
     if (!stampShape) {
@@ -888,16 +908,16 @@ export function mountArtGridTool(containerElement) {
     background.color = getColorsForGeneration()[0]
     bgColorInput.value = background.color
     bgHexInput.value = background.color
-    applyBackground()
+    scheduleDeferredApplyBackground(true)
     showToast('Stamp set as background')
   })
   bgSection.append(bgLabel, bgColorRow, bgTypeRow, bgPatternRow, bgTextureScaleRow.row, bgStampRow)
 
   const getBackground = () => ({ ...background })
-  function applyBackground() {
+  function applyBackground(pushUndo = true) {
     const svg = previewContent.querySelector('svg')
     if (!svg) return
-    pushUndoState()
+    if (pushUndo) pushUndoState()
     const metadata = decodeSvgMetadata(svg)
     if (!metadata) return
     const baseViewBox = readBaseViewBox(svg)
@@ -917,6 +937,21 @@ export function mountArtGridTool(containerElement) {
     const refreshedSvg = setSvgContent(latestSvg)
     if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
     bindSvgInteractions()
+  }
+  const backgroundUpdateOverlayMessage = 'Updating background…'
+  let deferredApplyBackgroundScheduled = false
+  function scheduleDeferredApplyBackground(pushUndo) {
+    if (deferredApplyBackgroundScheduled) return
+    deferredApplyBackgroundScheduled = true
+    setLoadingOverlay(true, backgroundUpdateOverlayMessage)
+    setTimeout(() => {
+      try {
+        applyBackground(pushUndo)
+      } finally {
+        deferredApplyBackgroundScheduled = false
+        setLoadingOverlay(false)
+      }
+    }, 0)
   }
 
   settingsContent.append(
@@ -1148,12 +1183,10 @@ export function mountArtGridTool(containerElement) {
       colorInput.addEventListener('input', () => {
         colorPalette[i] = colorInput.value
         hexInput.value = colorInput.value
-        persistSettings(stats?.textContent ?? '')
       })
       colorInput.addEventListener('change', () => {
         colorPalette[i] = colorInput.value
         hexInput.value = colorInput.value
-        renderPaletteList()
         persistSettings(stats?.textContent ?? '')
       })
       hexInput.addEventListener('change', applyHexFromInput)
@@ -1332,35 +1365,37 @@ export function mountArtGridTool(containerElement) {
     }
     saveDropdown.style.display = saveDropdown.style.display === 'none' ? 'block' : 'none'
   })
-  const runExport = async (which) => {
+  const runExport = (which) => {
     closeSaveDropdown()
-    const exportW = readPositiveInt(width.input, 1200)
-    const exportH = readPositiveInt(height.input, 2400)
-    const includeGrid = includeGridCheckbox.checked
-    const svgText = getExportReadySvg(latestSvg, { includeGrid, exportWidth: exportW, exportHeight: exportH })
-    const base = `art-grid-${Date.now()}`
     setLoadingOverlay(true, 'Exporting…')
-    try {
-      if (which === 'svg') {
-        downloadSvg(svgText, `${base}.svg`)
-        status.textContent = 'SVG downloaded.'
-      } else if (which === 'jpeg') {
-        await downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
-        status.textContent = 'JPEG downloaded.'
-      } else if (which === 'png') {
-        await downloadSvgAsRaster(svgText, 'image/png', 'png', base)
-        status.textContent = 'PNG downloaded.'
-      } else {
-        downloadSvg(svgText, `${base}.svg`)
-        await downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
-        await downloadSvgAsRaster(svgText, 'image/png', 'png', base)
-        status.textContent = 'SVG, JPEG, and PNG downloaded.'
-      }
+    setTimeout(async () => {
+      try {
+        const exportW = readPositiveInt(width.input, 1200)
+        const exportH = readPositiveInt(height.input, 2400)
+        const includeGrid = includeGridCheckbox.checked
+        const svgText = getExportReadySvg(latestSvg, { includeGrid, exportWidth: exportW, exportHeight: exportH })
+        const base = `art-grid-${Date.now()}`
+        if (which === 'svg') {
+          downloadSvg(svgText, `${base}.svg`)
+          status.textContent = 'SVG downloaded.'
+        } else if (which === 'jpeg') {
+          await downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
+          status.textContent = 'JPEG downloaded.'
+        } else if (which === 'png') {
+          await downloadSvgAsRaster(svgText, 'image/png', 'png', base)
+          status.textContent = 'PNG downloaded.'
+        } else {
+          downloadSvg(svgText, `${base}.svg`)
+          await downloadSvgAsRaster(svgText, 'image/jpeg', 'jpg', base)
+          await downloadSvgAsRaster(svgText, 'image/png', 'png', base)
+          status.textContent = 'SVG, JPEG, and PNG downloaded.'
+        }
     } catch (err) {
       status.textContent = `Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`
     } finally {
       setLoadingOverlay(false)
     }
+    }, 0)
   }
   saveDropdown.querySelectorAll('button').forEach((opt, idx) => {
     opt.addEventListener('click', () => {
@@ -1407,6 +1442,7 @@ export function mountArtGridTool(containerElement) {
   
   // Load default stamp sheet
   const loadStampSheet = (src) => {
+    setLoadingOverlay(true, 'Loading stamp sheet…')
     const img = new Image()
     img.onload = () => {
       sheetImage = img
@@ -1423,21 +1459,21 @@ export function mountArtGridTool(containerElement) {
       } else {
         status.textContent = 'Custom stamp sheet loaded. Click a cell to select.'
       }
-      // If no SVG on canvas yet, generate one now that stamps are available
+      // If no SVG on canvas yet, generate one now that stamps are available (overlay stays visible; generate() will hide it)
       if (previewContent && !previewContent.querySelector('svg') && typeof generate === 'function') {
         generate()
+      } else {
+        setLoadingOverlay(false)
       }
     }
     img.onerror = () => {
+      setLoadingOverlay(false)
       if (src.includes('stamps.png')) {
         console.log('Default stamp sheet not found, upload your own.')
       }
     }
     img.src = src
   }
-  
-  // Load default sheet on mount (use base URL for deployed subpath)
-  loadStampSheet(import.meta.env.BASE_URL + 'stamps.png')
   
   uploadInput.addEventListener('change', (e) => {
     const file = e.target.files?.[0]
@@ -1639,9 +1675,9 @@ export function mountArtGridTool(containerElement) {
     setTimeout(() => toast.remove(), 2500)
   }
   
-  // Higher = smoother when scaling stamps up, but larger SVG and slower parse/render. 1 keeps path compact.
-  const STAMP_PATH_RESOLUTION = 1
-  // Max dimension for stamp path while editing; higher = clearer stamp preview. Full-res path used on export.
+  // Resolution for full-res stamp path (export): higher = smoother lines, larger SVG. Editor uses low-res path.
+  const STAMP_PATH_RESOLUTION_EXPORT = 4
+  // Max dimension for stamp path while editing; reduces path commands for faster render. Full-res path used on export.
   const EDITOR_STAMP_PATH_MAX = 64
 
   const READBACK_CONTEXT_OPTIONS = { willReadFrequently: true }
@@ -1735,8 +1771,8 @@ export function mountArtGridTool(containerElement) {
         if (!croppedCtx) continue
         croppedCtx.imageSmoothingEnabled = false
         croppedCtx.drawImage(tempCanvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
-        const stampPathNormal = bitmapToSvgPath(croppedCanvas, false, STAMP_PATH_RESOLUTION)
-        const stampPathInverted = bitmapToSvgPath(croppedCanvas, true, STAMP_PATH_RESOLUTION)
+        const stampPathNormal = bitmapToSvgPath(croppedCanvas, false, STAMP_PATH_RESOLUTION_EXPORT)
+        const stampPathInverted = bitmapToSvgPath(croppedCanvas, true, STAMP_PATH_RESOLUTION_EXPORT)
         const editorPathMax = Math.max(1, EDITOR_STAMP_PATH_MAX)
         const scaleEditor = Math.min(1, editorPathMax / Math.max(cropWidth, cropHeight))
         const editorW = Math.max(1, Math.round(cropWidth * scaleEditor))
@@ -1759,8 +1795,8 @@ export function mountArtGridTool(containerElement) {
         const editorPathInverted = stampPathEditorInverted || stampPathInverted
         const editorPathW = stampPathEditorNormal != null ? editorW : cropWidth
         const editorPathH = stampPathEditorNormal != null ? editorH : cropHeight
-        if (stampPathNormal) pool.push({ stampPath: stampPathNormal, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION, stampPathEditor: editorPathNormal, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
-        if (stampPathInverted) pool.push({ stampPath: stampPathInverted, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION, stampPathEditor: editorPathInverted, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
+        if (stampPathNormal) pool.push({ stampPath: stampPathNormal, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION_EXPORT, stampPathEditor: editorPathNormal, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
+        if (stampPathInverted) pool.push({ stampPath: stampPathInverted, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION_EXPORT, stampPathEditor: editorPathInverted, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
       }
     }
     return pool
@@ -1778,7 +1814,7 @@ export function mountArtGridTool(containerElement) {
     let stampWidthEditor = stampData.stampWidthEditor
     let stampHeightEditor = stampData.stampHeightEditor
     if (stampData.canvas) {
-      stampPath = bitmapToSvgPath(stampData.canvas, stampInvert, STAMP_PATH_RESOLUTION)
+      stampPath = bitmapToSvgPath(stampData.canvas, stampInvert, STAMP_PATH_RESOLUTION_EXPORT)
       if (!stampPath) return null
       const editorPathMax = Math.max(1, EDITOR_STAMP_PATH_MAX)
       const scaleEditor = Math.min(1, editorPathMax / Math.max(cw, ch))
@@ -1816,7 +1852,7 @@ export function mountArtGridTool(containerElement) {
       stampPath,
       stampWidth: cw,
       stampHeight: ch,
-      stampPathResolution: STAMP_PATH_RESOLUTION,
+      stampPathResolution: stampData.stampPathResolution ?? STAMP_PATH_RESOLUTION_EXPORT,
       ...(stampPathEditor != null && { stampPathEditor, stampWidthEditor, stampHeightEditor }),
     }
   }
@@ -2538,88 +2574,85 @@ export function mountArtGridTool(containerElement) {
     else if (!visible) loadingOverlayTextEl.textContent = defaultLoadingOverlayText
   }
 
-  async function generate() {
+  function generate() {
     if (isGenerating) return
     isGenerating = true
-    const stampPool = getStampPool()
-    if (!stampPool.length) {
-      showToast('Load a stamp sheet first.')
-      isGenerating = false
-      setGeneratingState(false)
-      return
-    }
-    pushUndoState()
-    setLoadingOverlay(true)
-    const exportW = readPositiveInt(width.input, 1200)
-    const exportH = readPositiveInt(height.input, 2400)
-    const { w: editorW, h: editorH } = getEditorSize(exportW, exportH)
-    const spreadRaw = parseFloat(spreadRow.input.value)
-    const spread = Number.isFinite(spreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, spreadRaw)) : spreadDefault
-    const scaleToEditor = Math.min(editorW / exportW, editorH / exportH)
-    const options = {
-      seed: readPositiveInt(seed.input, Date.now()),
-      width: editorW,
-      height: editorH,
-      shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
-      spread,
-      minSize: Math.max(2, Math.round(readBoundedInt(minSize.input, 8, 2, 100) * scaleToEditor)),
-      maxSize: Math.max(4, Math.round(readBoundedInt(maxSize.input, 120, 10, 300) * scaleToEditor)),
-      minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
-      maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
-      randomRotation: randomRotationCheckbox.checked,
-      colors: getColorsForGeneration(),
-      stamps: stampPool,
-    }
-    seed.input.value = String(options.seed)
-    status.textContent = 'Generating art grid...'
+    setLoadingOverlay(true, defaultLoadingOverlayText)
     setGeneratingState(true)
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-    try {
-      const currentSvg = previewContent.querySelector('svg')
-      const previousViewBoxRaw = currentSvg ? (parseViewBoxFromRaw(currentSvg.getAttribute('viewBox')) ? currentSvg.getAttribute('viewBox') : null) : null
-      const existingStampShapes = (() => {
-        if (selectedLayer === 'stamps') return []
-        if (!currentSvg) return []
-        const metadata = decodeSvgMetadata(currentSvg)
-        if (!metadata?.shapes) return []
-        return metadata.shapes.filter((s) => s.layer === 'stamps')
-      })()
-      const grid = generateArtGrid(options)
-      if (existingStampShapes.length > 0) {
-        grid.shapes.push(...existingStampShapes)
-        grid.meta.shapeCount = grid.shapes.length
+    status.textContent = 'Generating art grid...'
+    setTimeout(async () => {
+      try {
+        const stampPool = getStampPool()
+        if (!stampPool.length) {
+          showToast('Load a stamp sheet first.')
+          return
+        }
+        pushUndoState()
+        const exportW = readPositiveInt(width.input, 1200)
+        const exportH = readPositiveInt(height.input, 2400)
+        const { w: editorW, h: editorH } = getEditorSize(exportW, exportH)
+        const spreadRaw = parseFloat(spreadRow.input.value)
+        const spread = Number.isFinite(spreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, spreadRaw)) : spreadDefault
+        const scaleToEditor = Math.min(editorW / exportW, editorH / exportH)
+        const options = {
+          seed: readPositiveInt(seed.input, Date.now()),
+          width: editorW,
+          height: editorH,
+          shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
+          spread,
+          minSize: Math.max(2, Math.round(readBoundedInt(minSize.input, 8, 2, 100) * scaleToEditor)),
+          maxSize: Math.max(4, Math.round(readBoundedInt(maxSize.input, 120, 10, 300) * scaleToEditor)),
+          minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
+          maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
+          randomRotation: randomRotationCheckbox.checked,
+          colors: getColorsForGeneration(),
+          stamps: stampPool,
+        }
+        seed.input.value = String(options.seed)
+        const currentSvg = previewContent.querySelector('svg')
+        const existingStampShapes = (() => {
+          if (selectedLayer === 'stamps') return []
+          if (!currentSvg) return []
+          const metadata = decodeSvgMetadata(currentSvg)
+          if (!metadata?.shapes) return []
+          return metadata.shapes.filter((s) => s.layer === 'stamps')
+        })()
+        const grid = generateArtGrid(options)
+        if (existingStampShapes.length > 0) {
+          grid.shapes.push(...existingStampShapes)
+          grid.meta.shapeCount = grid.shapes.length
+        }
+        grid.background = getBackground()
+        latestSvg = renderArtGridSvg(grid)
+        const generatedSvg = setSvgContent(latestSvg)
+        if (generatedSvg) {
+          const baseViewBox = readBaseViewBox(generatedSvg) ?? { minX: 0, minY: 0, width: options.width, height: options.height }
+          const W = baseViewBox.width
+          const H = baseViewBox.height
+          const margin = Math.max(W, H) * 0.15
+          const vx = baseViewBox.minX - margin
+          const vy = baseViewBox.minY - margin
+          const vw = W + margin * 2
+          const vh = H + margin * 2
+          generatedSvg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`)
+          latestSvg = generatedSvg.outerHTML
+        }
+        const statsText = `Shapes: ${grid.meta.shapeCount} · Export size: ${exportW}×${exportH}px`
+        stats.textContent = statsText
+        persistSettings(statsText)
+        selectedShapeIds.clear()
+        selectedLayer = null
+        bindSvgInteractions()
+        updateSelection()
+        status.textContent = 'Art grid generated.'
+      } catch (error) {
+        status.textContent = `Could not generate art grid: ${error instanceof Error ? error.message : 'Unknown error'}`
+      } finally {
+        setLoadingOverlay(false)
+        isGenerating = false
+        setGeneratingState(false)
       }
-      grid.background = getBackground()
-      latestSvg = renderArtGridSvg(grid)
-      const generatedSvg = setSvgContent(latestSvg)
-      if (generatedSvg) {
-        const baseViewBox = readBaseViewBox(generatedSvg) ?? { minX: 0, minY: 0, width: options.width, height: options.height }
-        const W = baseViewBox.width
-        const H = baseViewBox.height
-        const margin = Math.max(W, H) * 0.15
-        const vx = baseViewBox.minX - margin
-        const vy = baseViewBox.minY - margin
-        const vw = W + margin * 2
-        const vh = H + margin * 2
-        generatedSvg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`)
-        latestSvg = generatedSvg.outerHTML
-      }
-      const statsText = `Shapes: ${grid.meta.shapeCount} · Export size: ${exportW}×${exportH}px`
-      stats.textContent = statsText
-      persistSettings(statsText)
-      selectedShapeIds.clear()
-      selectedLayer = null
-      setLoadingOverlay(false)
-      bindSvgInteractions()
-      updateSelection()
-      status.textContent = 'Art grid generated.'
-    } catch (error) {
-      status.textContent = `Could not generate art grid: ${error instanceof Error ? error.message : 'Unknown error'}`
-    } finally {
-      setLoadingOverlay(false)
-      isGenerating = false
-      setGeneratingState(false)
-    }
+    }, 0)
   }
 
   deleteEntityBtn.addEventListener('click', () => {
@@ -2723,67 +2756,64 @@ export function mountArtGridTool(containerElement) {
       if (!svg) return
       const metadata = decodeSvgMetadata(svg)
       if (!metadata) return
-      const stampPool = getStampPool()
-      if (!stampPool.length) {
-        showToast('Load a stamp sheet first.')
-        return
-      }
-      pushUndoState()
-      setLoadingOverlay(true)
-      // Yield so the browser paints the loading overlay before we block the main thread
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          try {
-            const currentViewBoxRaw = svg.getAttribute('viewBox')
-            const exportW = readPositiveInt(width.input, 1200)
-            const exportH = readPositiveInt(height.input, 2400)
-            const { w: canvasWidth, h: canvasHeight } = getEditorSize(exportW, exportH)
-            const scaleToEditor = Math.min(canvasWidth / exportW, canvasHeight / exportH)
-            const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
-            const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
-            const layerSpreadRaw = parseFloat(spreadRow.input.value)
-            const layerSpread = Number.isFinite(layerSpreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, layerSpreadRaw)) : spreadDefault
-            const layerOptions = {
-              seed: randomSeed(),
+      setLoadingOverlay(true, defaultLoadingOverlayText)
+      setTimeout(() => {
+        try {
+          const stampPool = getStampPool()
+          if (!stampPool.length) {
+            showToast('Load a stamp sheet first.')
+            return
+          }
+          pushUndoState()
+          const currentViewBoxRaw = svg.getAttribute('viewBox')
+          const exportW = readPositiveInt(width.input, 1200)
+          const exportH = readPositiveInt(height.input, 2400)
+          const { w: canvasWidth, h: canvasHeight } = getEditorSize(exportW, exportH)
+          const scaleToEditor = Math.min(canvasWidth / exportW, canvasHeight / exportH)
+          const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
+          const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
+          const layerSpreadRaw = parseFloat(spreadRow.input.value)
+          const layerSpread = Number.isFinite(layerSpreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, layerSpreadRaw)) : spreadDefault
+          const layerOptions = {
+            seed: randomSeed(),
+            width: canvasWidth,
+            height: canvasHeight,
+            shapeCount: layerShapes.length,
+            spread: layerSpread,
+            minSize: Math.max(2, Math.round(readBoundedInt(minSize.input, 8, 2, 100) * scaleToEditor)),
+            maxSize: Math.max(4, Math.round(readBoundedInt(maxSize.input, 120, 10, 300) * scaleToEditor)),
+            minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
+            maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
+            randomRotation: randomRotationCheckbox.checked,
+            colors: getColorsForGeneration(),
+            stamps: stampPool,
+          }
+          const layerGrid = generateArtGrid(layerOptions)
+          const newLayerShapes = layerGrid.shapes.map((s) => ({ ...s, layer: selectedLayer }))
+          metadata.shapes = [...otherShapes, ...newLayerShapes]
+          const grid = {
+            meta: {
               width: canvasWidth,
               height: canvasHeight,
-              shapeCount: layerShapes.length,
-              spread: layerSpread,
-              minSize: Math.max(2, Math.round(readBoundedInt(minSize.input, 8, 2, 100) * scaleToEditor)),
-              maxSize: Math.max(4, Math.round(readBoundedInt(maxSize.input, 120, 10, 300) * scaleToEditor)),
-              minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
-              maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
-              randomRotation: randomRotationCheckbox.checked,
-              colors: getColorsForGeneration(),
-              stamps: stampPool,
-            }
-            const layerGrid = generateArtGrid(layerOptions)
-            const newLayerShapes = layerGrid.shapes.map((s) => ({ ...s, layer: selectedLayer }))
-            metadata.shapes = [...otherShapes, ...newLayerShapes]
-            const grid = {
-              meta: {
-                width: canvasWidth,
-                height: canvasHeight,
-                seed: readPositiveInt(seed.input, Date.now()),
-                shapeCount: metadata.shapes.length,
-              },
-              shapes: metadata.shapes,
-              background: getBackground(),
-            }
-            latestSvg = renderArtGridSvg(grid)
-            const refreshedSvg = setSvgContent(latestSvg)
-            if (refreshedSvg && currentViewBoxRaw) {
-              refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-            }
-            selectedShapeIds.clear()
-            newLayerShapes.forEach(shape => selectedShapeIds.add(shape.id))
-            bindSvgInteractions()
-            status.textContent = `Regenerated ${newLayerShapes.length} shapes in Layer ${selectedLayer}.`
-          } finally {
-            setLoadingOverlay(false)
+              seed: readPositiveInt(seed.input, Date.now()),
+              shapeCount: metadata.shapes.length,
+            },
+            shapes: metadata.shapes,
+            background: getBackground(),
           }
-        })
-      })
+          latestSvg = renderArtGridSvg(grid)
+          const refreshedSvg = setSvgContent(latestSvg)
+          if (refreshedSvg && currentViewBoxRaw) {
+            refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
+          }
+          selectedShapeIds.clear()
+          newLayerShapes.forEach(shape => selectedShapeIds.add(shape.id))
+          bindSvgInteractions()
+          status.textContent = `Regenerated ${newLayerShapes.length} shapes in Layer ${selectedLayer}.`
+        } finally {
+          setLoadingOverlay(false)
+        }
+      }, 0)
     } else {
       // No layer selected - randomize seed and regenerate everything
       seed.input.value = String(randomSeed())
@@ -2796,5 +2826,6 @@ export function mountArtGridTool(containerElement) {
     generate()
   })
 
-  // First generate runs from loadStampSheet's img.onload once the stamp sheet is ready
+  // Load default stamp sheet last so setLoadingOverlay exists; first generate runs from img.onload
+  loadStampSheet(import.meta.env.BASE_URL + 'stamps.png')
 }
