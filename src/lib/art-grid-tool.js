@@ -431,6 +431,43 @@ function downloadSvg(svgText, fileName = `art-grid-${Date.now()}.svg`) {
   URL.revokeObjectURL(objectUrl)
 }
 
+/**
+ * On mobile, programmatic download links often don't save to Photos. Use Web Share API when
+ * available so the user can choose "Save Image" / "Add to Photos" from the share sheet.
+ * Falls back to <a download> when share is not available or user cancels.
+ * @param {Blob} blob
+ * @param {string} mimeType
+ * @param {string} fileName
+ * @returns {Promise<void>}
+ */
+async function shareOrDownloadRaster(blob, mimeType, fileName) {
+  const file = new File([blob], fileName, { type: mimeType })
+  if (typeof navigator.share === 'function') {
+    try {
+      let canShare = false
+      if (typeof navigator.canShare === 'function') {
+        canShare = navigator.canShare({ files: [file] })
+      } else {
+        canShare = true
+      }
+      if (canShare) {
+        await navigator.share({ files: [file] })
+        return
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') return
+    }
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = fileName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 function parseSvgDimensions(svgText) {
   const w = svgText.match(/width=["']?\s*([\d.]+)/)?.[1]
   const h = svgText.match(/height=["']?\s*([\d.]+)/)?.[1]
@@ -468,18 +505,12 @@ function downloadSvgAsRaster(svgText, mimeType, extension, fileNameBase) {
       }
       ctx.drawImage(img, 0, 0, dims.w, dims.h)
       canvas.toBlob(
-        (outBlob) => {
+        async (outBlob) => {
           if (!outBlob) {
             resolve()
             return
           }
-          const a = document.createElement('a')
-          a.href = URL.createObjectURL(outBlob)
-          a.download = `${base}.${extension}`
-          document.body.appendChild(a)
-          a.click()
-          a.remove()
-          URL.revokeObjectURL(a.href)
+          await shareOrDownloadRaster(outBlob, mimeType, `${base}.${extension}`)
           resolve()
         },
         mimeType,

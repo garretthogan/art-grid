@@ -736,7 +736,7 @@ body.tui #camera-controls > .panel {
     left: auto;
   }
 
-  /* Mode toolbar (tools): bottom right on mobile */
+  /* Mode toolbar (tools): bottom right on mobile – keep visible so Export is always reachable */
   body.tui .mode-toolbar {
     top: auto;
     bottom: var(--tui-gap);
@@ -744,8 +744,11 @@ body.tui #camera-controls > .panel {
     left: auto;
   }
 
-  /* Hide tool buttons while control panel is open */
-  body.tui #app #controls-area:not(.collapsed) ~ .mode-toolbar {
-    display: none;
+  /* Export dropdown opens above the button on mobile so it stays on-screen */
+  body.tui .mode-toolbar .save-export-dropdown {
+    top: auto !important;
+    bottom: 100% !important;
+    margin-top: 0 !important;
+    margin-bottom: 4px !important;
   }
 }
