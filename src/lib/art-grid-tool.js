@@ -431,18 +431,23 @@ function downloadSvg(svgText, fileName = `art-grid-${Date.now()}.svg`) {
   URL.revokeObjectURL(objectUrl)
 }
 
+/** True when viewport is mobile-sized; use share sheet there, file-save dialog on desktop. */
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+}
+
 /**
- * On mobile, programmatic download links often don't save to Photos. Use Web Share API when
- * available so the user can choose "Save Image" / "Add to Photos" from the share sheet.
- * Falls back to <a download> when share is not available or user cancels.
+ * On mobile viewport, use Web Share API so the user can choose "Save Image" / "Add to Photos".
+ * On desktop, use <a download> so the user gets the normal file-save dialog.
  * @param {Blob} blob
  * @param {string} mimeType
  * @param {string} fileName
  * @returns {Promise<void>}
  */
 async function shareOrDownloadRaster(blob, mimeType, fileName) {
-  const file = new File([blob], fileName, { type: mimeType })
-  if (typeof navigator.share === 'function') {
+  const useShare = isMobileViewport() && typeof navigator.share === 'function'
+  if (useShare) {
+    const file = new File([blob], fileName, { type: mimeType })
     try {
       let canShare = false
       if (typeof navigator.canShare === 'function') {
@@ -2400,16 +2405,21 @@ export function mountArtGridTool(containerElement) {
           updateSelection()
         }
         
+        // Use position from the element so first drag follows cursor (metadata can be stale after re-renders)
+        const planX = parseFloat(shapeElement.getAttribute('data-plan-x')) || shape.x
+        const planY = parseFloat(shapeElement.getAttribute('data-plan-y')) || shape.y
         stateBeforeDrag = getCurrentState()
         dragState = {
           kind: 'shape',
           id,
           element: shapeElement,
-          startX: shape.x,
-          startY: shape.y,
-          offsetX: point.x - shape.x,
-          offsetY: point.y - shape.y,
+          startX: planX,
+          startY: planY,
+          offsetX: point.x - planX,
+          offsetY: point.y - planY,
         }
+        shape.x = planX
+        shape.y = planY
         shapeElement.setPointerCapture(event.pointerId)
         event.preventDefault()
         return
@@ -2434,7 +2444,7 @@ export function mountArtGridTool(containerElement) {
     let lastPanClientX = 0
     let lastPanClientY = 0
     let panRafId = null
-    svg.onpointermove = (event) => {
+    const onPointerMove = (event) => {
       if (!dragState) return
       if (dragState.kind === 'pan') {
         lastPanClientX = event.clientX
@@ -2541,6 +2551,7 @@ export function mountArtGridTool(containerElement) {
         dragState.element.setAttribute('data-plan-y', String(shape.y))
       }
     }
+    svg.addEventListener('pointermove', onPointerMove, { capture: true })
 
     const endDrag = (event) => {
       if (!dragState) return
