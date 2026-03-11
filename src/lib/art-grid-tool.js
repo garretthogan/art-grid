@@ -995,6 +995,15 @@ export function mountArtGridTool(containerElement) {
   nudgeRow.input.title = 'Distance to move the selected shape when using arrow keys'
   nudgeRow.input.setAttribute('aria-label', 'Arrow key nudge distance in pixels')
 
+  const scaleStepMin = 1
+  const scaleStepMax = 50
+  const scaleStepDefault = 10
+  const savedScaleStep = saved?.scaleStep
+  const scaleStepValue = savedScaleStep != null && savedScaleStep >= scaleStepMin && savedScaleStep <= scaleStepMax ? savedScaleStep : scaleStepDefault
+  const scaleStepRow = createRangeField('Scale step (px)', 'ag-scale-step', scaleStepValue, scaleStepMin, scaleStepMax, 1)
+  scaleStepRow.input.title = 'Size change when using Cmd/Ctrl + Plus or Minus on selected shape(s)'
+  scaleStepRow.input.setAttribute('aria-label', 'Scale step in pixels')
+
   // Background layer controls (own tab)
   const bgSection = document.createElement('div')
   bgSection.className = 'floor-plan-control'
@@ -1214,6 +1223,7 @@ export function mountArtGridTool(containerElement) {
     shapeCount.row,
     spreadRow.row,
     nudgeRow.row,
+    scaleStepRow.row,
     minSize.row,
     maxSize.row,
     minTextureScale.row,
@@ -2085,6 +2095,7 @@ export function mountArtGridTool(containerElement) {
         maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
         randomRotation: randomRotationCheckbox.checked,
         nudgeAmount: readBoundedInt(nudgeRow.input, nudgeDefault, nudgeMin, nudgeMax),
+        scaleStep: readBoundedInt(scaleStepRow.input, scaleStepDefault, scaleStepMin, scaleStepMax),
         stampScale: getStampScale(),
         stampPattern: stampTextureSelect.value || 'solid',
         colorPalette: [...colorPalette],
@@ -2648,6 +2659,42 @@ export function mountArtGridTool(containerElement) {
         syncLatestSvg()
         redraw()
         status.textContent = 'Rotated 45°.'
+      }
+      return
+    }
+    if (mod && (event.key === '+' || event.key === '=')) {
+      event.preventDefault()
+      if (inInput) return
+      if (currentGrid && selectedShapeIds.size > 0) {
+        const step = readBoundedInt(scaleStepRow.input, scaleStepDefault, scaleStepMin, scaleStepMax)
+        pushUndoState()
+        selectedShapeIds.forEach((id) => {
+          const shape = currentGrid.shapes.find((s) => s.id === id)
+          if (shape && typeof shape.size === 'number') {
+            shape.size = Math.min(500, shape.size + step)
+          }
+        })
+        syncLatestSvg()
+        redraw()
+        status.textContent = `Scaled up ${step}px.`
+      }
+      return
+    }
+    if (mod && event.key === '-') {
+      event.preventDefault()
+      if (inInput) return
+      if (currentGrid && selectedShapeIds.size > 0) {
+        const step = readBoundedInt(scaleStepRow.input, scaleStepDefault, scaleStepMin, scaleStepMax)
+        pushUndoState()
+        selectedShapeIds.forEach((id) => {
+          const shape = currentGrid.shapes.find((s) => s.id === id)
+          if (shape && typeof shape.size === 'number') {
+            shape.size = Math.max(2, shape.size - step)
+          }
+        })
+        syncLatestSvg()
+        redraw()
+        status.textContent = `Scaled down ${step}px.`
       }
       return
     }
