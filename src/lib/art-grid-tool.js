@@ -688,7 +688,7 @@ export function mountArtGridTool(containerElement) {
     if (!currentGrid || selectedShapeIds.size === 0) return null
     const scale = getScaleFromGrid()
     const padding = Math.max(0.5, 1.5 * scale)
-    const gizmoRadius = Math.max(1.5, 4 * scale)
+    const gizmoRadius = Math.max(1, 2 * scale)
     for (const id of selectedShapeIds) {
       const shape = currentGrid.shapes.find((s) => s.id === id)
       if (!shape) continue
@@ -735,7 +735,7 @@ export function mountArtGridTool(containerElement) {
     const padding = Math.max(0.5, 1.5 * scale)
     const outlineStrokeWidth = Math.max(0.25, 0.7 * scale)
     const outlineDashLen = Math.max(0.5, 2 * scale)
-    const gizmoRadius = Math.max(1.5, 4 * scale)
+    const gizmoRadius = Math.max(1, 2 * scale)
     const base = getBaseViewBox()
     if (base) {
       const strokeWidth = Math.max(0.25, 1 * scale)
@@ -867,6 +867,23 @@ export function mountArtGridTool(containerElement) {
       }
     }
 
+    if (stampMode && selectedStampIndices.size > 1 && currentGrid && clickedOnCanvas) {
+      const pt = toSceneCoords(e.clientX, e.clientY)
+      if (pt) {
+        const base = getBaseViewBox()
+        if (base && pt.x >= 0 && pt.x <= base.width && pt.y >= 0 && pt.y <= base.height) {
+          e.stopPropagation()
+          e.preventDefault()
+          selectedStampIndices.clear()
+          stampShape = null
+          updateStampThumbOutlines()
+          updateSelectedStampsStrip()
+          status.textContent = 'Stamps deselected.'
+          return
+        }
+      }
+    }
+
     if (stampMode && stampShape && currentGrid && clickedOnCanvas) {
       const pt = toSceneCoords(e.clientX, e.clientY)
       if (pt) {
@@ -968,6 +985,15 @@ export function mountArtGridTool(containerElement) {
   const spreadRow = createRangeField('Spread', 'ag-spread', spreadValue, spreadMin, spreadMax, spreadStep)
   spreadRow.input.title = 'How far from center shapes are placed; above 1 allows shapes to extend past the canvas and be cut off by the border'
   spreadRow.input.setAttribute('aria-label', 'Shape spread from center')
+
+  const nudgeMin = 1
+  const nudgeMax = 100
+  const nudgeDefault = 10
+  const savedNudge = saved?.nudgeAmount
+  const nudgeValue = savedNudge != null && savedNudge >= nudgeMin && savedNudge <= nudgeMax ? savedNudge : nudgeDefault
+  const nudgeRow = createRangeField('Arrow nudge (px)', 'ag-nudge', nudgeValue, nudgeMin, nudgeMax, 1)
+  nudgeRow.input.title = 'Distance to move the selected shape when using arrow keys'
+  nudgeRow.input.setAttribute('aria-label', 'Arrow key nudge distance in pixels')
 
   // Background layer controls (own tab)
   const bgSection = document.createElement('div')
@@ -1187,6 +1213,7 @@ export function mountArtGridTool(containerElement) {
     canvasSizeRow,
     shapeCount.row,
     spreadRow.row,
+    nudgeRow.row,
     minSize.row,
     maxSize.row,
     minTextureScale.row,
@@ -1198,24 +1225,18 @@ export function mountArtGridTool(containerElement) {
   const stampContent = document.createElement('div')
   stampContent.className = 'panel-content'
   
-  // Upload shape sheet
-  const uploadLabel = document.createElement('label')
-  uploadLabel.style.display = 'block'
-  uploadLabel.style.marginBottom = '8px'
-  uploadLabel.textContent = 'Upload Shape Sheet:'
-  const uploadInput = document.createElement('input')
-  uploadInput.type = 'file'
-  uploadInput.accept = 'image/*'
-  uploadInput.style.width = '100%'
-  uploadInput.style.marginBottom = '8px'
-  
-  // Sheet preview canvas
-  const sheetCanvas = document.createElement('canvas')
-  sheetCanvas.style.width = '100%'
-  sheetCanvas.style.border = '2px solid var(--tui-line-strong)'
-  sheetCanvas.style.cursor = 'crosshair'
-  sheetCanvas.style.display = 'none'
-  sheetCanvas.style.imageRendering = 'pixelated'
+  // Scrollable grid of stamp thumbnails (filled by loadStampsFromFolder)
+  const stampGridContainer = document.createElement('div')
+  stampGridContainer.className = 'stamp-grid'
+  stampGridContainer.style.display = 'grid'
+  stampGridContainer.style.gridTemplateColumns = 'repeat(4, 1fr)'
+  stampGridContainer.style.columnGap = '32px'
+  stampGridContainer.style.rowGap = '32px'
+  stampGridContainer.style.maxHeight = '200px'
+  stampGridContainer.style.overflowY = 'auto'
+  stampGridContainer.style.padding = '2px'
+  stampGridContainer.style.border = '1px solid var(--tui-line-strong)'
+  stampGridContainer.style.marginBottom = '8px'
   
   // Stamp controls
   const stampControls = document.createElement('div')
@@ -1258,17 +1279,56 @@ export function mountArtGridTool(containerElement) {
   stampTextureSelect.value = saved?.stampPattern ?? 'solid'
   stampTextureRow.append(stampTextureLabel, stampTextureSelect)
 
-  const stampPreview = document.createElement('canvas')
-  stampPreview.style.width = '64px'
-  stampPreview.style.height = '64px'
-  stampPreview.style.border = '2px solid var(--tui-line-strong)'
-  stampPreview.style.display = 'none'
-  stampPreview.style.imageRendering = 'pixelated'
-  stampPreview.width = 64
-  stampPreview.height = 64
-  
-  stampControls.append(invertToggle, stampScaleRow.row, stampTextureRow, stampPreview)
-  stampContent.append(uploadLabel, uploadInput, sheetCanvas, stampControls)
+  const selectedStampsStrip = document.createElement('div')
+  selectedStampsStrip.className = 'selected-stamps-strip'
+  selectedStampsStrip.style.display = 'flex'
+  selectedStampsStrip.style.flexDirection = 'row'
+  selectedStampsStrip.style.gap = '6px'
+  selectedStampsStrip.style.overflowX = 'auto'
+  selectedStampsStrip.style.padding = '8px 0'
+  selectedStampsStrip.style.marginTop = '8px'
+  selectedStampsStrip.style.minHeight = '52px'
+  selectedStampsStrip.style.border = '2px solid var(--tui-line-strong)'
+  selectedStampsStrip.style.borderRadius = '4px'
+  selectedStampsStrip.setAttribute('aria-label', 'Selected stamps')
+
+  function updateSelectedStampsStrip() {
+    selectedStampsStrip.innerHTML = ''
+    const indices = [...selectedStampIndices].sort((a, b) => a - b)
+    indices.forEach((idx) => {
+      const entry = loadedStamps[idx]
+      if (!entry) return
+      const cell = document.createElement('div')
+      cell.style.flexShrink = '0'
+      cell.style.width = '48px'
+      cell.style.height = '48px'
+      cell.style.display = 'flex'
+      cell.style.alignItems = 'center'
+      cell.style.justifyContent = 'center'
+      cell.style.background = '#333'
+      cell.style.borderRadius = '4px'
+      const c = document.createElement('canvas')
+      c.width = 48
+      c.height = 48
+      c.style.imageRendering = 'pixelated'
+      c.style.borderRadius = '4px'
+      const ctx = c.getContext('2d')
+      if (ctx) {
+        ctx.imageSmoothingEnabled = false
+        ctx.fillStyle = '#333'
+        ctx.fillRect(0, 0, 48, 48)
+        const s = Math.min(48 / entry.width, 48 / entry.height)
+        const tw = entry.width * s
+        const th = entry.height * s
+        ctx.drawImage(entry.canvas, (48 - tw) / 2, (48 - th) / 2, tw, th)
+      }
+      cell.appendChild(c)
+      selectedStampsStrip.appendChild(cell)
+    })
+  }
+
+  stampControls.append(invertToggle, stampScaleRow.row, stampTextureRow, selectedStampsStrip)
+  stampContent.append(stampGridContainer, stampControls)
   
   const paletteContent = document.createElement('div')
   paletteContent.className = 'panel-content'
@@ -1662,125 +1722,42 @@ export function mountArtGridTool(containerElement) {
     if (currentGrid) persistMetadata()
   })
 
-  // Stamp tool implementation
-  let sheetImage = null
-  let sheetGridCols = 8
-  let sheetGridRows = 5
-  
-  // Load default stamp sheet
-  const loadStampSheet = (src) => {
-    setLoadingOverlay(true, 'Loading stamp sheet…')
-    const img = new Image()
-    img.onload = () => {
-      sheetImage = img
-      sheetCanvas.width = img.width
-      sheetCanvas.height = img.height
-      sheetCanvas.style.display = 'block'
-      
-      const ctx = sheetCanvas.getContext('2d')
-      ctx.imageSmoothingEnabled = false
-      ctx.drawImage(img, 0, 0)
-      
-      if (src.includes('stamps.png')) {
-        status.textContent = 'Default stamp sheet loaded. Click a cell to select.'
-      } else {
-        status.textContent = 'Custom stamp sheet loaded. Click a cell to select.'
-      }
-      // If no grid yet, generate one now that stamps are available (overlay stays visible; generate() will hide it)
-      if (previewContent && !currentGrid && typeof generate === 'function') {
-        generate()
-      } else {
-        setLoadingOverlay(false)
-      }
-    }
-    img.onerror = () => {
-      setLoadingOverlay(false)
-      if (src.includes('stamps.png')) {
-        console.log('Default stamp sheet not found, upload your own.')
-      }
-    }
-    img.src = src
-  }
-  
-  uploadInput.addEventListener('change', (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      loadStampSheet(event.target.result)
-    }
-    reader.readAsDataURL(file)
-  })
-  
-  sheetCanvas.addEventListener('click', (e) => {
-    if (!sheetImage) return
-    
-    const rect = sheetCanvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width
-    const y = (e.clientY - rect.top) / rect.height
-    
-    const col = Math.floor(x * sheetGridCols)
-    const row = Math.floor(y * sheetGridRows)
-    
-    if (col < 0 || col >= sheetGridCols || row < 0 || row >= sheetGridRows) return
-    
-    const cellWidth = sheetImage.width / sheetGridCols
-    const cellHeight = sheetImage.height / sheetGridRows
-    
-    // Extract the cell
+  // Stamp tool implementation: load individual stamp images from /stamps/ folder
+  let loadedStamps = []
+  /** Indices into loadedStamps for multi-select (shift+click). Primary stamp = first in set for single placement. */
+  let selectedStampIndices = new Set()
+
+  function cropImageToShapeBounds(img, useInvert = false) {
+    const w = img.width
+    const h = img.height
     const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = cellWidth
-    tempCanvas.height = cellHeight
+    tempCanvas.width = w
+    tempCanvas.height = h
     const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
-    if (!tempCtx) return
+    if (!tempCtx) return null
     tempCtx.imageSmoothingEnabled = false
-    tempCtx.drawImage(
-      sheetImage,
-      col * cellWidth, row * cellHeight, cellWidth, cellHeight,
-      0, 0, cellWidth, cellHeight
-    )
-    
-    // Find bounding box of shape pixels (excluding gray grid)
-    const imageData = tempCtx.getImageData(0, 0, cellWidth, cellHeight)
-    const { data, width: w, height: h } = imageData
-    
-    let minX = w, minY = h, maxX = 0, maxY = 0
-    let hasPixels = false
-    
+    tempCtx.drawImage(img, 0, 0)
+    const imageData = tempCtx.getImageData(0, 0, w, h)
+    const { data } = imageData
     const isGridPixel = (r, g, b) => {
       const brightness = (r + g + b) / 3
-      
-      // Only allow pure black (0-50) or pure white (205-255)
-      // Everything else is considered grid/background
       const isPureBlack = brightness < 50
       const isPureWhite = brightness > 205
-      
       return !isPureBlack && !isPureWhite
     }
-    
+    let minX = w, minY = h, maxX = 0, maxY = 0
+    let hasPixels = false
     for (let py = 0; py < h; py++) {
       for (let px = 0; px < w; px++) {
         const i = (py * w + px) * 4
-        const a = data[i + 3]
-        
-        if (a < 10) continue // Skip fully transparent
-        
-        const r = data[i]
-        const g = data[i + 1]
-        const b = data[i + 2]
-        
-        // Skip gray grid pixels
+        if (data[i + 3] < 10) continue
+        const r = data[i], g = data[i + 1], b = data[i + 2]
         if (isGridPixel(r, g, b)) continue
-        
         const brightness = (r + g + b) / 3
         const isPureBlack = brightness < 50
         const isPureWhite = brightness > 205
-        
-        if (!isPureBlack && !isPureWhite) continue // Skip non-shape pixels
-        
-        const isShape = stampInvert ? isPureWhite : isPureBlack
-        
+        if (!isPureBlack && !isPureWhite) continue
+        const isShape = useInvert ? isPureWhite : isPureBlack
         if (isShape) {
           hasPixels = true
           minX = Math.min(minX, px)
@@ -1790,65 +1767,108 @@ export function mountArtGridTool(containerElement) {
         }
       }
     }
-    
-    if (!hasPixels) {
-      status.textContent = 'Empty cell selected. Try another one.'
-      return
-    }
-    
-    // Crop to bounding box
-    const cropX = minX
-    const cropY = minY
+    if (!hasPixels) return null
     const cropWidth = maxX - minX + 1
     const cropHeight = maxY - minY + 1
-    
     const croppedCanvas = document.createElement('canvas')
     croppedCanvas.width = cropWidth
     croppedCanvas.height = cropHeight
     const croppedCtx = croppedCanvas.getContext('2d', { willReadFrequently: true })
-    if (!croppedCtx) return
+    if (!croppedCtx) return null
     croppedCtx.imageSmoothingEnabled = false
-    croppedCtx.drawImage(
-      tempCanvas,
-      cropX, cropY, cropWidth, cropHeight,
-      0, 0, cropWidth, cropHeight
-    )
-    
-    stampShape = {
-      canvas: croppedCanvas,
-      width: cropWidth,
-      height: cropHeight,
-      col,
-      row,
+    croppedCtx.drawImage(tempCanvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
+    return { canvas: croppedCanvas, width: cropWidth, height: cropHeight }
+  }
+
+  const STAMP_THUMB_BORDER_DEFAULT = '2px solid var(--tui-line-strong)'
+  const STAMP_THUMB_BORDER_SELECTED = '3px solid #4a9eff'
+
+  function updateStampThumbOutlines() {
+    stampGridContainer.querySelectorAll('.stamp-thumb').forEach((thumb) => {
+      const idx = Number(thumb.dataset.stampIndex)
+      thumb.style.border = selectedStampIndices.has(idx) ? STAMP_THUMB_BORDER_SELECTED : STAMP_THUMB_BORDER_DEFAULT
+    })
+  }
+
+  function selectStampAndUpdatePreview(entry, shiftKey, index) {
+    if (shiftKey) {
+      if (selectedStampIndices.has(index)) selectedStampIndices.delete(index)
+      else selectedStampIndices.add(index)
+    } else {
+      selectedStampIndices = new Set([index])
     }
-    
-    // Show preview
-    stampPreview.style.display = 'block'
-    const previewCtx = stampPreview.getContext('2d')
-    previewCtx.imageSmoothingEnabled = false
-    previewCtx.clearRect(0, 0, 64, 64)
-    previewCtx.fillStyle = '#333'
-    previewCtx.fillRect(0, 0, 64, 64)
-    const scale = Math.min(64 / cropWidth, 64 / cropHeight)
-    const drawWidth = cropWidth * scale
-    const drawHeight = cropHeight * scale
-    const drawX = (64 - drawWidth) / 2
-    const drawY = (64 - drawHeight) / 2
-    previewCtx.drawImage(croppedCanvas, drawX, drawY, drawWidth, drawHeight)
-    
-    status.textContent = `Selected stamp from row ${row + 1}, col ${col + 1}. Stamp mode enabled.`
-    if (setStampMode) setStampMode(true)
-  })
-  
+    stampShape = selectedStampIndices.size ? loadedStamps[Math.min(...selectedStampIndices)] : null
+    updateStampThumbOutlines()
+    updateSelectedStampsStrip()
+    if (selectedStampIndices.size > 1) {
+      status.textContent = `${selectedStampIndices.size} stamps selected. Click canvas to add a layer, or Generate to use only these.`
+    } else if (stampShape) {
+      status.textContent = 'Stamp selected. Stamp mode enabled.'
+    } else {
+      status.textContent = 'No stamp selected.'
+    }
+    if (selectedStampIndices.size && setStampMode) setStampMode(true)
+  }
+
+  const loadStampsFromFolder = () => {
+    setLoadingOverlay(true, 'Loading stamps…')
+    loadedStamps = []
+    stampGridContainer.innerHTML = ''
+    const baseUrl = import.meta.env.BASE_URL + 'stamps/'
+    const total = 120
+    let settled = 0
+    const checkDone = () => {
+      settled++
+      if (settled < total) return
+      setLoadingOverlay(false)
+      status.textContent = loadedStamps.length ? 'Stamps loaded. Click one to select.' : 'No stamps found in /stamps/ folder.'
+      if (previewContent && !currentGrid && typeof generate === 'function' && loadedStamps.length) generate()
+    }
+    for (let n = 1; n <= total; n++) {
+      const img = new Image()
+      img.onload = () => {
+        const entry = cropImageToShapeBounds(img, false)
+        if (!entry) {
+          checkDone()
+          return
+        }
+        const index = loadedStamps.length
+        loadedStamps.push(entry)
+        const thumb = document.createElement('button')
+        thumb.type = 'button'
+        thumb.className = 'stamp-thumb'
+        thumb.dataset.stampIndex = String(index)
+        thumb.title = `Stamp ${n} (shift+click to select multiple)`
+        thumb.setAttribute('aria-label', `Select stamp ${n}`)
+        thumb.style.cssText = 'width:100%;aspect-ratio:1;padding:0;border:' + STAMP_THUMB_BORDER_DEFAULT + ';cursor:pointer;background:#333;display:flex;align-items:center;justify-content:center;overflow:hidden;'
+        const thumbCanvas = document.createElement('canvas')
+        thumbCanvas.width = 32
+        thumbCanvas.height = 32
+        thumbCanvas.style.imageRendering = 'pixelated'
+        thumbCanvas.style.maxWidth = '100%'
+        thumbCanvas.style.maxHeight = '100%'
+        const tctx = thumbCanvas.getContext('2d')
+        if (tctx) {
+          tctx.imageSmoothingEnabled = false
+          const s = Math.min(32 / entry.width, 32 / entry.height)
+          const tw = entry.width * s
+          const th = entry.height * s
+          tctx.fillStyle = '#333'
+          tctx.fillRect(0, 0, 32, 32)
+          tctx.drawImage(entry.canvas, (32 - tw) / 2, (32 - th) / 2, tw, th)
+        }
+        thumb.appendChild(thumbCanvas)
+        thumb.addEventListener('click', (e) => selectStampAndUpdatePreview(entry, e.shiftKey, index))
+        stampGridContainer.appendChild(thumb)
+        checkDone()
+      }
+      img.onerror = checkDone
+      img.src = baseUrl + 'Asset%20' + n + '@2x.png'
+    }
+  }
+
   invertCheckbox.addEventListener('change', () => {
     stampInvert = invertCheckbox.checked
-    if (stampShape) {
-      // Update preview
-      const previewCtx = stampPreview.getContext('2d')
-      previewCtx.imageSmoothingEnabled = false
-      previewCtx.clearRect(0, 0, 64, 64)
-      previewCtx.drawImage(stampShape.canvas, 0, 0, 64, 64)
-    }
   })
 
   const entityActions = document.createElement('div')
@@ -1942,91 +1962,48 @@ export function mountArtGridTool(containerElement) {
   
   const getStampScale = () => parseFloat(stampScaleRow.input.value) || 0.25
 
-  /** Returns all stamp variants from the sheet (each cell as normal + inverted) for random generation. */
-  function getStampPool() {
-    if (!sheetImage) return []
-    const cellWidth = sheetImage.width / sheetGridCols
-    const cellHeight = sheetImage.height / sheetGridRows
+  /** Build pool from a list of stamp entries (each as normal + inverted). */
+  function buildStampPoolFromEntries(entries) {
     const pool = []
-    const isGridPixel = (r, g, b) => {
-      const brightness = (r + g + b) / 3
-      const isPureBlack = brightness < 50
-      const isPureWhite = brightness > 205
-      return !isPureBlack && !isPureWhite
-    }
-    for (let row = 0; row < sheetGridRows; row++) {
-      for (let col = 0; col < sheetGridCols; col++) {
-        const tempCanvas = document.createElement('canvas')
-        tempCanvas.width = cellWidth
-        tempCanvas.height = cellHeight
-        const tempCtx = tempCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
-        if (!tempCtx) continue
-        tempCtx.imageSmoothingEnabled = false
-        tempCtx.drawImage(
-          sheetImage,
-          col * cellWidth, row * cellHeight, cellWidth, cellHeight,
-          0, 0, cellWidth, cellHeight
-        )
-        const imageData = tempCtx.getImageData(0, 0, cellWidth, cellHeight)
-        const { data, width: w, height: h } = imageData
-        let minX = w, minY = h, maxX = 0, maxY = 0
-        let hasPixels = false
-        for (let py = 0; py < h; py++) {
-          for (let px = 0; px < w; px++) {
-            const i = (py * w + px) * 4
-            if (data[i + 3] < 10) continue
-            const r = data[i], g = data[i + 1], b = data[i + 2]
-            if (isGridPixel(r, g, b)) continue
-            const brightness = (r + g + b) / 3
-            const isPureBlack = brightness < 50
-            const isPureWhite = brightness > 205
-            if (!isPureBlack && !isPureWhite) continue
-            hasPixels = true
-            minX = Math.min(minX, px)
-            minY = Math.min(minY, py)
-            maxX = Math.max(maxX, px)
-            maxY = Math.max(maxY, py)
-          }
+    for (const entry of entries) {
+      const croppedCanvas = entry.canvas
+      const cropWidth = entry.width
+      const cropHeight = entry.height
+      const stampPathNormal = bitmapToSvgPath(croppedCanvas, false, STAMP_PATH_RESOLUTION_EXPORT)
+      const stampPathInverted = bitmapToSvgPath(croppedCanvas, true, STAMP_PATH_RESOLUTION_EXPORT)
+      const editorPathMax = Math.max(1, EDITOR_STAMP_PATH_MAX)
+      const scaleEditor = Math.min(1, editorPathMax / Math.max(cropWidth, cropHeight))
+      const editorW = Math.max(1, Math.round(cropWidth * scaleEditor))
+      const editorH = Math.max(1, Math.round(cropHeight * scaleEditor))
+      let stampPathEditorNormal = null
+      let stampPathEditorInverted = null
+      if (editorW * editorH < cropWidth * cropHeight) {
+        const smallCanvas = document.createElement('canvas')
+        smallCanvas.width = editorW
+        smallCanvas.height = editorH
+        const smallCtx = smallCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
+        if (smallCtx) {
+          smallCtx.imageSmoothingEnabled = false
+          smallCtx.drawImage(croppedCanvas, 0, 0, cropWidth, cropHeight, 0, 0, editorW, editorH)
+          stampPathEditorNormal = bitmapToSvgPath(smallCanvas, false, 1)
+          stampPathEditorInverted = bitmapToSvgPath(smallCanvas, true, 1)
         }
-        if (!hasPixels) continue
-        const cropWidth = maxX - minX + 1
-        const cropHeight = maxY - minY + 1
-        const croppedCanvas = document.createElement('canvas')
-        croppedCanvas.width = cropWidth
-        croppedCanvas.height = cropHeight
-        const croppedCtx = croppedCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
-        if (!croppedCtx) continue
-        croppedCtx.imageSmoothingEnabled = false
-        croppedCtx.drawImage(tempCanvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight)
-        const stampPathNormal = bitmapToSvgPath(croppedCanvas, false, STAMP_PATH_RESOLUTION_EXPORT)
-        const stampPathInverted = bitmapToSvgPath(croppedCanvas, true, STAMP_PATH_RESOLUTION_EXPORT)
-        const editorPathMax = Math.max(1, EDITOR_STAMP_PATH_MAX)
-        const scaleEditor = Math.min(1, editorPathMax / Math.max(cropWidth, cropHeight))
-        const editorW = Math.max(1, Math.round(cropWidth * scaleEditor))
-        const editorH = Math.max(1, Math.round(cropHeight * scaleEditor))
-        let stampPathEditorNormal = null
-        let stampPathEditorInverted = null
-        if (editorW * editorH < cropWidth * cropHeight) {
-          const smallCanvas = document.createElement('canvas')
-          smallCanvas.width = editorW
-          smallCanvas.height = editorH
-          const smallCtx = smallCanvas.getContext('2d', READBACK_CONTEXT_OPTIONS)
-          if (smallCtx) {
-            smallCtx.imageSmoothingEnabled = false
-            smallCtx.drawImage(croppedCanvas, 0, 0, cropWidth, cropHeight, 0, 0, editorW, editorH)
-            stampPathEditorNormal = bitmapToSvgPath(smallCanvas, false, 1)
-            stampPathEditorInverted = bitmapToSvgPath(smallCanvas, true, 1)
-          }
-        }
-        const editorPathNormal = stampPathEditorNormal || stampPathNormal
-        const editorPathInverted = stampPathEditorInverted || stampPathInverted
-        const editorPathW = stampPathEditorNormal != null ? editorW : cropWidth
-        const editorPathH = stampPathEditorNormal != null ? editorH : cropHeight
-        if (stampPathNormal) pool.push({ stampPath: stampPathNormal, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION_EXPORT, stampPathEditor: editorPathNormal, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
-        if (stampPathInverted) pool.push({ stampPath: stampPathInverted, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION_EXPORT, stampPathEditor: editorPathInverted, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
       }
+      const editorPathNormal = stampPathEditorNormal || stampPathNormal
+      const editorPathInverted = stampPathEditorInverted || stampPathInverted
+      const editorPathW = stampPathEditorNormal != null ? editorW : cropWidth
+      const editorPathH = stampPathEditorNormal != null ? editorH : cropHeight
+      if (stampPathNormal) pool.push({ stampPath: stampPathNormal, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION_EXPORT, stampPathEditor: editorPathNormal, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
+      if (stampPathInverted) pool.push({ stampPath: stampPathInverted, stampWidth: cropWidth, stampHeight: cropHeight, stampPathResolution: STAMP_PATH_RESOLUTION_EXPORT, stampPathEditor: editorPathInverted, stampWidthEditor: editorPathW, stampHeightEditor: editorPathH })
     }
     return pool
+  }
+
+  /** Returns stamp pool for random generation. If entriesOverride is provided, use only those stamps; otherwise all loaded. */
+  function getStampPool(entriesOverride = null) {
+    const entries = entriesOverride?.length ? entriesOverride : loadedStamps
+    if (!entries.length) return []
+    return buildStampPoolFromEntries(entries)
   }
 
   /** @param {number} [editorScale] Scale from export size to editor size (e.g. editorW/exportW); use 1 when already in editor coords. */
@@ -2107,6 +2084,7 @@ export function mountArtGridTool(containerElement) {
         minTextureScale: parseFloat(minTextureScale.input.value) || 0.5,
         maxTextureScale: parseFloat(maxTextureScale.input.value) || 2,
         randomRotation: randomRotationCheckbox.checked,
+        nudgeAmount: readBoundedInt(nudgeRow.input, nudgeDefault, nudgeMin, nudgeMax),
         stampScale: getStampScale(),
         stampPattern: stampTextureSelect.value || 'solid',
         colorPalette: [...colorPalette],
@@ -2507,9 +2485,12 @@ export function mountArtGridTool(containerElement) {
     status.textContent = 'Generating art grid...'
     setTimeout(async () => {
       try {
-        const stampPool = getStampPool()
+        const entriesOverride = selectedStampIndices.size > 1
+          ? [...selectedStampIndices].sort((a, b) => a - b).map((i) => loadedStamps[i])
+          : null
+        const stampPool = getStampPool(entriesOverride)
         if (!stampPool.length) {
-          showToast('Load a stamp sheet first.')
+          showToast('No stamps loaded. Add images to the /stamps/ folder.')
           return
         }
         pushUndoState()
@@ -2534,7 +2515,9 @@ export function mountArtGridTool(containerElement) {
           stamps: stampPool,
         }
         seed.input.value = String(options.seed)
+        const useStampSubset = selectedStampIndices.size > 1
         const existingStampShapes = (() => {
+          if (useStampSubset) return []
           if (selectedLayer === 'stamps') return []
           if (!currentGrid?.shapes) return []
           return currentGrid.shapes.filter((s) => s.layer === 'stamps')
@@ -2622,6 +2605,52 @@ export function mountArtGridTool(containerElement) {
       event.preventDefault()
       return
     }
+    const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']
+    if (arrowKeys.includes(event.key)) {
+      if (inInput) return
+      if (currentGrid && selectedShapeIds.size > 0) {
+        event.preventDefault()
+        const nudge = readBoundedInt(nudgeRow.input, nudgeDefault, nudgeMin, nudgeMax)
+        let dx = 0
+        let dy = 0
+        if (event.key === 'ArrowLeft') dx = -nudge
+        else if (event.key === 'ArrowRight') dx = nudge
+        else if (event.key === 'ArrowUp') dy = -nudge
+        else if (event.key === 'ArrowDown') dy = nudge
+        if (dx !== 0 || dy !== 0) {
+          pushUndoState()
+          selectedShapeIds.forEach((id) => {
+            const shape = currentGrid.shapes.find((s) => s.id === id)
+            if (shape && typeof shape.x === 'number' && typeof shape.y === 'number') {
+              shape.x += dx
+              shape.y += dy
+            }
+          })
+          syncLatestSvg()
+          redraw()
+          const dir = dx !== 0 ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up')
+          status.textContent = `Moved ${dir} ${nudge}px.`
+        }
+      }
+      return
+    }
+    if (mod && (event.key === 'r' || event.key === 'R')) {
+      event.preventDefault()
+      if (inInput) return
+      if (currentGrid && selectedShapeIds.size > 0) {
+        pushUndoState()
+        selectedShapeIds.forEach((id) => {
+          const shape = currentGrid.shapes.find((s) => s.id === id)
+          if (shape && typeof shape.rotation === 'number') {
+            shape.rotation = (shape.rotation + 45) % 360
+          }
+        })
+        syncLatestSvg()
+        redraw()
+        status.textContent = 'Rotated 45°.'
+      }
+      return
+    }
     if (inInput) return
     if (event.key === 'v' || event.key === 'V') {
       if (setStampMode) setStampMode(false)
@@ -2652,9 +2681,12 @@ export function mountArtGridTool(containerElement) {
       setLoadingOverlay(true, defaultLoadingOverlayText)
       setTimeout(() => {
         try {
-          const stampPool = getStampPool()
+          const entriesOverride = selectedStampIndices.size > 1
+            ? [...selectedStampIndices].sort((a, b) => a - b).map((i) => loadedStamps[i])
+            : null
+          const stampPool = getStampPool(entriesOverride)
           if (!stampPool.length) {
-            showToast('Load a stamp sheet first.')
+            showToast('No stamps loaded. Add images to the /stamps/ folder.')
             return
           }
           pushUndoState()
@@ -2707,6 +2739,6 @@ export function mountArtGridTool(containerElement) {
     generate()
   })
 
-  // Load default stamp sheet last so setLoadingOverlay exists; first generate runs from img.onload
-  loadStampSheet(import.meta.env.BASE_URL + 'stamps.png')
+  // Load stamps from /stamps/ folder (last so setLoadingOverlay exists; first generate runs when load settles)
+  loadStampsFromFolder()
 }
