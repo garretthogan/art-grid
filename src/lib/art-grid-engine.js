@@ -333,3 +333,355 @@ export function renderArtGridSvg(grid, options = {}) {
   </g>
 </svg>`.trim();
 }
+
+// --- Canvas 2D renderer ---
+
+const PATTERN_TILE_PX = 32;
+const MAX_PATTERN_SCALE = 4;
+
+const patternCache = new Map();
+
+function patternCacheKey(patternType, color, scaleBucket) {
+  return `${patternType}:${color}:${scaleBucket}`;
+}
+
+function bucketTextureScale(scale) {
+  const s = Math.max(1, Number(scale) || 1);
+  return Math.min(MAX_PATTERN_SCALE, Math.ceil(s));
+}
+
+function createPatternCanvas(patternType, color, scaleFactor) {
+  const tilePx = Math.max(PATTERN_TILE_PX, Math.round(PATTERN_TILE_PX * scaleFactor));
+  const canvas = document.createElement('canvas');
+  canvas.width = tilePx;
+  canvas.height = tilePx;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const s = tilePx;
+  const strokeW = Math.max(1, PATTERN_STROKE_FRAC * s);
+  const r = 0.35 * s;
+  switch (patternType) {
+    case 'hatch':
+      ctx.strokeStyle = color;
+      ctx.lineWidth = strokeW;
+      ctx.beginPath();
+      ctx.moveTo(s / 2, 0);
+      ctx.lineTo(s / 2, s);
+      ctx.stroke();
+      break;
+    case 'cross-hatch':
+      ctx.strokeStyle = color;
+      ctx.lineWidth = strokeW;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(s, s);
+      ctx.moveTo(s, 0);
+      ctx.lineTo(0, s);
+      ctx.stroke();
+      break;
+    case 'dots':
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(s / 2, s / 2, r, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'checkerboard':
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, s / 2, s / 2);
+      ctx.fillRect(s / 2, s / 2, s / 2, s / 2);
+      break;
+    case 'stripes':
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, s / 2, s);
+      break;
+    default:
+      return null;
+  }
+  return canvas;
+}
+
+function getCachedPattern(ctx, patternType, color, textureScale = 1) {
+  const scaleBucket = bucketTextureScale(textureScale);
+  const key = patternCacheKey(patternType, color, scaleBucket);
+  let pattern = patternCache.get(key);
+  if (!pattern) {
+    const canvas = createPatternCanvas(patternType, color, scaleBucket);
+    if (canvas) {
+      pattern = ctx.createPattern(canvas, 'repeat');
+      if (pattern) patternCache.set(key, pattern);
+    }
+  }
+  return pattern || null;
+}
+
+function drawBackground(ctx, grid, width, height, pixelScale = 1) {
+  const background = grid.background ?? { color: '#000000', textureType: 'solid' };
+  const color = background.color || '#000000';
+  if (background.textureType === 'solid') {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+  if (background.textureType === 'stamp' && background.stampPath && background.stampWidth && background.stampHeight) {
+    const scale = background.textureScale ?? 1;
+    const cellW = background.stampWidth * scale;
+    const cellH = background.stampHeight * scale;
+    try {
+      const path = new Path2D(background.stampPath);
+      for (let y = 0; y < height + cellH; y += cellH) {
+        for (let x = 0; x < width + cellW; x += cellW) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.scale(scale, scale);
+          ctx.fillStyle = color;
+          ctx.fill(path);
+          ctx.restore();
+        }
+      }
+    } catch (_) {
+      ctx.fillStyle = color;
+      ctx.fillRect(0, 0, width, height);
+    }
+    return;
+  }
+  if (background.textureType !== 'pattern' || !background.pattern) {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+  const patternType = background.pattern;
+  const scale = Math.max(0.25, background.textureScale ?? 1);
+  const patternSizeLogical = Math.max(4, Math.round(PATTERN_TILE_PX * scale));
+  const patternSizePx = Math.max(patternSizeLogical, Math.round(patternSizeLogical * pixelScale));
+  const canvas = document.createElement('canvas');
+  canvas.width = patternSizePx;
+  canvas.height = patternSizePx;
+  const pctx = canvas.getContext('2d');
+  if (!pctx) {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    return;
+  }
+  const strokeW = Math.max(0.5, (0.5 * patternSizePx) / PATTERN_TILE_PX);
+  if (patternType === 'hatch') {
+    pctx.save();
+    pctx.translate(patternSizePx / 2, patternSizePx / 2);
+    pctx.rotate((45 * Math.PI) / 180);
+    pctx.translate(-patternSizePx / 2, -patternSizePx / 2);
+    pctx.strokeStyle = color;
+    pctx.lineWidth = strokeW;
+    pctx.beginPath();
+    pctx.moveTo(patternSizePx / 2, 0);
+    pctx.lineTo(patternSizePx / 2, patternSizePx);
+    pctx.stroke();
+    pctx.restore();
+  } else if (patternType === 'cross-hatch') {
+    pctx.strokeStyle = color;
+    pctx.lineWidth = strokeW;
+    pctx.beginPath();
+    pctx.moveTo(0, 0);
+    pctx.lineTo(patternSizePx, patternSizePx);
+    pctx.moveTo(patternSizePx, 0);
+    pctx.lineTo(0, patternSizePx);
+    pctx.stroke();
+  } else if (patternType === 'dots') {
+    pctx.fillStyle = color;
+    pctx.beginPath();
+    pctx.arc(patternSizePx / 2, patternSizePx / 2, 0.35 * patternSizePx, 0, Math.PI * 2);
+    pctx.fill();
+  } else if (patternType === 'checkerboard') {
+    const half = patternSizePx / 2;
+    pctx.fillStyle = color;
+    pctx.fillRect(0, 0, half, half);
+    pctx.fillRect(half, half, half, half);
+  } else if (patternType === 'stripes') {
+    pctx.fillStyle = color;
+    pctx.fillRect(0, 0, patternSizePx / 2, patternSizePx);
+  }
+  const bgPattern = ctx.createPattern(canvas, 'repeat');
+  if (bgPattern) {
+    ctx.save();
+    ctx.scale(1 / pixelScale, 1 / pixelScale);
+    ctx.fillStyle = bgPattern;
+    ctx.fillRect(0, 0, width * pixelScale, height * pixelScale);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+  }
+}
+
+function drawShape(ctx, shape, patternCacheGetter) {
+  const layer = shape.layer || 1;
+  const halfSize = shape.size / 2;
+  const strokeWidth = shape.pattern === 'solid' ? 0.5 : 0.25;
+  const strokeColor = shape.pattern === 'solid' ? '#000000' : shape.color;
+
+  ctx.save();
+  ctx.translate(shape.x, shape.y);
+  ctx.rotate((shape.rotation * Math.PI) / 180);
+
+  let fillStyle = shape.color;
+  if (shape.pattern !== 'solid') {
+    const textureScale = shape.textureScale ?? 1;
+    const pattern = patternCacheGetter(shape.pattern, shape.color, textureScale);
+    if (pattern) fillStyle = pattern;
+  }
+  ctx.fillStyle = fillStyle;
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = strokeWidth;
+
+  if (shape.type === 'circle') {
+    ctx.beginPath();
+    ctx.arc(0, 0, shape.size / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  } else if (shape.type === 'stamp' && shape.stampPath) {
+    const useEditor = shape.stampPathEditor != null && shape.stampWidthEditor != null && shape.stampHeightEditor != null;
+    const pathD = useEditor ? shape.stampPathEditor : shape.stampPath;
+    const w = useEditor ? shape.stampWidthEditor : shape.stampWidth;
+    const h = useEditor ? shape.stampHeightEditor : shape.stampHeight;
+    if (pathD && w != null && h != null) {
+      const res = useEditor ? 1 : (shape.stampPathResolution || 1);
+      const scale = (shape.size / Math.max(w, h)) * res;
+      const centerX = w / (2 * res);
+      const centerY = h / (2 * res);
+      const stampFill = shape.pattern === 'solid' ? shape.color : (patternCacheGetter(shape.pattern, shape.color, shape.textureScale ?? 1) || shape.color);
+      ctx.fillStyle = stampFill;
+      if (shape.pattern !== 'solid') ctx.strokeStyle = shape.color;
+      try {
+        const path = new Path2D(pathD);
+        ctx.save();
+        ctx.translate(-centerX * scale, -centerY * scale);
+        ctx.scale(scale, scale);
+        ctx.fill(path);
+        if (shape.pattern !== 'solid') {
+          ctx.lineWidth = 0.25 / scale;
+          ctx.stroke(path);
+        }
+        ctx.restore();
+      } catch (_) {
+        ctx.fillRect(-halfSize, -halfSize, shape.size, shape.size);
+      }
+    } else {
+      ctx.fillRect(-halfSize, -halfSize, shape.size, shape.size);
+      ctx.strokeRect(-halfSize, -halfSize, shape.size, shape.size);
+    }
+  } else {
+    ctx.fillRect(-halfSize, -halfSize, shape.size, shape.size);
+    ctx.strokeRect(-halfSize, -halfSize, shape.size, shape.size);
+  }
+
+  ctx.restore();
+}
+
+function shapesDrawOrder(shapes) {
+  return [...shapes].sort((a, b) => {
+    const layerA = a.layer ?? 1;
+    const layerB = b.layer ?? 1;
+    if (layerA !== layerB) return layerA - layerB;
+    return 0;
+  });
+}
+
+/**
+ * Render the art grid into a Canvas 2D context.
+ * @param {Object} grid - { meta: { width, height }, shapes, background }
+ * @param {CanvasRenderingContext2D} ctx - 2D context to draw into
+ * @param {{ minX: number, minY: number, width: number, height: number }} viewTransform - viewport in scene coordinates (same semantics as SVG viewBox)
+ * @param {number} canvasWidth - canvas element width in pixels
+ * @param {number} canvasHeight - canvas element height in pixels
+ */
+export function renderArtGridCanvas(grid, ctx, viewTransform, canvasWidth, canvasHeight) {
+  const { minX, minY, width, height } = viewTransform;
+  const scaleX = canvasWidth / width;
+  const scaleY = canvasHeight / height;
+
+  ctx.save();
+  ctx.setTransform(scaleX, 0, 0, scaleY, -minX * scaleX, -minY * scaleY);
+
+  const gw = grid.meta.width;
+  const gh = grid.meta.height;
+  ctx.beginPath();
+  ctx.rect(0, 0, gw, gh);
+  ctx.clip();
+
+  const pixelScale = Math.max(1, Math.min(scaleX, scaleY));
+  drawBackground(ctx, grid, gw, gh, pixelScale);
+
+  const getPattern = (patternType, color, textureScale) => getCachedPattern(ctx, patternType, color, textureScale);
+  const ordered = shapesDrawOrder(grid.shapes);
+  for (const shape of ordered) {
+    drawShape(ctx, shape, getPattern);
+  }
+
+  ctx.restore();
+}
+
+/** Transform scene point to shape-local (center at origin, no rotation). */
+function sceneToShapeLocal(shape, sceneX, sceneY) {
+  const rad = ((shape.rotation ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(-rad);
+  const sin = Math.sin(-rad);
+  const dx = sceneX - shape.x;
+  const dy = sceneY - shape.y;
+  return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+}
+
+/**
+ * Hit-test a single shape at scene coordinates (e.g. from pointer).
+ * Uses reverse of draw order: call for shapes in reverse layer order and return first hit.
+ * @param {Object} shape
+ * @param {number} sceneX
+ * @param {number} sceneY
+ * @returns {boolean}
+ */
+export function isPointInShape(shape, sceneX, sceneY) {
+  const { x: localX, y: localY } = sceneToShapeLocal(shape, sceneX, sceneY);
+  const half = shape.size / 2;
+  if (shape.type === 'circle') {
+    return localX * localX + localY * localY <= half * half;
+  }
+  if (shape.type === 'rect' || (!shape.type && true)) {
+    return Math.abs(localX) <= half && Math.abs(localY) <= half;
+  }
+  if (shape.type === 'stamp' && shape.stampPath) {
+    const useEditor = shape.stampPathEditor != null && shape.stampWidthEditor != null && shape.stampHeightEditor != null;
+    const pathD = useEditor ? shape.stampPathEditor : shape.stampPath;
+    const w = useEditor ? shape.stampWidthEditor : shape.stampWidth;
+    const h = useEditor ? shape.stampHeightEditor : shape.stampHeight;
+    if (!pathD || w == null || h == null) {
+      return Math.abs(localX) <= half && Math.abs(localY) <= half;
+    }
+    const res = useEditor ? 1 : (shape.stampPathResolution || 1);
+    const scale = (shape.size / Math.max(w, h)) * res;
+    const centerX = w / (2 * res);
+    const centerY = h / (2 * res);
+    const pathLocalX = localX / scale + centerX;
+    const pathLocalY = localY / scale + centerY;
+    try {
+      const path = new Path2D(pathD);
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return Math.abs(localX) <= half && Math.abs(localY) <= half;
+      return ctx.isPointInPath(path, pathLocalX, pathLocalY);
+    } catch (_) {
+      return Math.abs(localX) <= half && Math.abs(localY) <= half;
+    }
+  }
+  return Math.abs(localX) <= half && Math.abs(localY) <= half;
+}
+
+/**
+ * Shapes in reverse draw order (top-most first) for hit-testing.
+ */
+export function shapesHitTestOrder(shapes) {
+  return [...shapes].sort((a, b) => {
+    const layerA = a.layer ?? 1;
+    const layerB = b.layer ?? 1;
+    if (layerB !== layerA) return layerB - layerA;
+    return 0;
+  });
+}

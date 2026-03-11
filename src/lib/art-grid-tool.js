@@ -1,4 +1,4 @@
-import { generateArtGrid, renderArtGridSvg, PATTERNS } from './art-grid-engine.js'
+import { generateArtGrid, renderArtGridSvg, renderArtGridCanvas, isPointInShape, shapesHitTestOrder, PATTERNS } from './art-grid-engine.js'
 import Tesseract from 'tesseract.js'
 
 const HEX_IN_IMAGE_REGEX = /#?([0-9a-fA-F]{6})\b/g
@@ -571,9 +571,14 @@ export function mountArtGridTool(containerElement) {
 
   const saved = loadSettings()
   let latestSvg = ''
+  /** @type {{ meta: { width: number, height: number, seed: number, shapeCount: number }, shapes: object[], background?: object } | null} */
+  let currentGrid = null
+  /** @type {{ minX: number, minY: number, width: number, height: number } | null} */
+  let viewState = null
   let selectedShapeIds = new Set()
   let selectedLayer = null
   let dragState = null
+  let hoveredShapeId = null
   /* Use a smaller undo limit on narrow viewports to avoid memory pressure and tab crashes on mobile */
   const MAX_UNDO =
     typeof window !== 'undefined' && window.innerWidth <= 768 ? 12 : 50
@@ -609,104 +614,305 @@ export function mountArtGridTool(containerElement) {
   loadingOverlay.innerHTML = '<span class="ag-loading-overlay-spinner" aria-hidden="true"></span><span class="ag-loading-overlay-text">Generating art grid…</span>'
   const loadingOverlayTextEl = loadingOverlay.querySelector('.ag-loading-overlay-text')
   const defaultLoadingOverlayText = 'Generating art grid…'
-  const svgWrapper = document.createElement('div')
-  svgWrapper.className = 'color-palette-svg-wrapper'
+  const canvasWrapper = document.createElement('div')
+  canvasWrapper.className = 'color-palette-svg-wrapper'
+  canvasWrapper.style.position = 'relative'
+  canvasWrapper.style.width = '100%'
+  canvasWrapper.style.height = '100%'
+  canvasWrapper.style.minHeight = '200px'
+  const canvasInner = document.createElement('div')
+  canvasInner.className = 'ag-canvas-inner'
+  canvasInner.style.position = 'relative'
+  canvasInner.style.display = 'inline-block'
+  const mainCanvas = document.createElement('canvas')
+  mainCanvas.className = 'ag-main-canvas'
+  mainCanvas.style.display = 'block'
+  mainCanvas.setAttribute('aria-label', 'Generated art grid')
+  const overlayCanvas = document.createElement('canvas')
+  overlayCanvas.className = 'ag-overlay-canvas'
+  overlayCanvas.style.position = 'absolute'
+  overlayCanvas.style.left = '0'
+  overlayCanvas.style.top = '0'
+  overlayCanvas.style.pointerEvents = 'none'
+  canvasInner.appendChild(mainCanvas)
+  canvasInner.appendChild(overlayCanvas)
+  canvasWrapper.appendChild(canvasInner)
   previewContent.appendChild(loadingOverlay)
-  previewContent.appendChild(svgWrapper)
+  previewContent.appendChild(canvasWrapper)
   preview.appendChild(previewContent)
   previewContainer.appendChild(preview)
 
-  /** Parse SVG string as XML so metadata/namespaces are preserved; replace wrapper content and return the SVG element. */
-  function setSvgContent(svgString) {
-    if (!svgString || typeof svgString !== 'string') return null
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(svgString, 'image/svg+xml')
-    const svg = doc.querySelector('svg')
-    if (!svg) return null
-    svgWrapper.innerHTML = ''
-    svgWrapper.appendChild(svg)
-    return svg
+  function getBaseViewBox() {
+    if (!currentGrid) return null
+    return { minX: 0, minY: 0, width: currentGrid.meta.width, height: currentGrid.meta.height }
+  }
+
+  function getCurrentViewTransform() {
+    const base = getBaseViewBox()
+    if (viewState) return viewState
+    if (base) return base
+    return { minX: 0, minY: 0, width: 400, height: 400 }
+  }
+
+  /** Convert client coordinates to scene coordinates using the overlay canvas (same size as main). */
+  function toSceneCoords(clientX, clientY) {
+    const el = overlayCanvas
+    const rect = el.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    const vt = getCurrentViewTransform()
+    const scaleX = vt.width / rect.width
+    const scaleY = vt.height / rect.height
+    return {
+      x: vt.minX + (clientX - rect.left) * scaleX,
+      y: vt.minY + (clientY - rect.top) * scaleY,
+    }
+  }
+
+  function hitTestShapes(sceneX, sceneY) {
+    if (!currentGrid || !currentGrid.shapes.length) return null
+    const order = shapesHitTestOrder(currentGrid.shapes)
+    for (const shape of order) {
+      if (isPointInShape(shape, sceneX, sceneY)) return shape
+    }
+    return null
+  }
+
+  const refSize = 1200
+  function getScaleFromGrid() {
+    const base = getBaseViewBox()
+    if (!base) return 1
+    return Math.min(base.width, base.height) / refSize
+  }
+
+  function hitTestGizmos(sceneX, sceneY) {
+    if (!currentGrid || selectedShapeIds.size === 0) return null
+    const scale = getScaleFromGrid()
+    const padding = Math.max(0.5, 1.5 * scale)
+    const gizmoRadius = Math.max(1.5, 4 * scale)
+    for (const id of selectedShapeIds) {
+      const shape = currentGrid.shapes.find((s) => s.id === id)
+      if (!shape) continue
+      const outlineX = shape.x - shape.size / 2 - padding
+      const outlineY = shape.y - shape.size / 2 - padding
+      const outlineWidth = shape.size + padding * 2
+      const outlineHeight = shape.size + padding * 2
+      const rotateX = outlineX + outlineWidth
+      const rotateY = outlineY
+      if (Math.hypot(sceneX - rotateX, sceneY - rotateY) <= gizmoRadius * 2) return { kind: 'rotate', id }
+      const scaleGizmoX = outlineX + outlineWidth
+      const scaleGizmoY = outlineY + outlineHeight
+      if (Math.abs(sceneX - scaleGizmoX) <= gizmoRadius * 2 && Math.abs(sceneY - scaleGizmoY) <= gizmoRadius * 2) return { kind: 'scale', id }
+    }
+    return null
+  }
+
+  function drawMainCanvas() {
+    const cw = mainCanvas.width
+    const ch = mainCanvas.height
+    if (cw <= 0 || ch <= 0) return
+    const ctx = mainCanvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, cw, ch)
+    if (!currentGrid) return
+    const vt = getCurrentViewTransform()
+    renderArtGridCanvas(currentGrid, ctx, vt, cw, ch)
+  }
+
+  function drawOverlayCanvas() {
+    const cw = overlayCanvas.width
+    const ch = overlayCanvas.height
+    if (cw <= 0 || ch <= 0) return
+    const ctx = overlayCanvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, cw, ch)
+    if (!currentGrid) return
+    const vt = getCurrentViewTransform()
+    const scaleX = cw / vt.width
+    const scaleY = ch / vt.height
+    ctx.save()
+    ctx.setTransform(scaleX, 0, 0, scaleY, -vt.minX * scaleX, -vt.minY * scaleY)
+    const scale = getScaleFromGrid()
+    const padding = Math.max(0.5, 1.5 * scale)
+    const outlineStrokeWidth = Math.max(0.25, 0.7 * scale)
+    const outlineDashLen = Math.max(0.5, 2 * scale)
+    const gizmoRadius = Math.max(1.5, 4 * scale)
+    const base = getBaseViewBox()
+    if (base) {
+      const strokeWidth = Math.max(0.25, 1 * scale)
+      const dashLen = Math.max(1, 6 * scale)
+      const gapLen = Math.max(1, 4 * scale)
+      ctx.strokeStyle = 'rgba(0, 255, 255, 0.8)'
+      ctx.lineWidth = strokeWidth
+      ctx.setLineDash([dashLen, gapLen])
+      ctx.strokeRect(strokeWidth / 2, strokeWidth / 2, base.width - strokeWidth, base.height - strokeWidth)
+      ctx.setLineDash([])
+    }
+    selectedShapeIds.forEach((id) => {
+      const shape = currentGrid.shapes.find((s) => s.id === id)
+      if (!shape) return
+      const x = shape.x - shape.size / 2 - padding
+      const y = shape.y - shape.size / 2 - padding
+      const w = shape.size + padding * 2
+      const h = shape.size + padding * 2
+      ctx.strokeStyle = '#00ffff'
+      ctx.lineWidth = outlineStrokeWidth
+      ctx.setLineDash([outlineDashLen, outlineDashLen])
+      ctx.strokeRect(x, y, w, h)
+      ctx.setLineDash([])
+      ctx.fillStyle = '#00ffff'
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = outlineStrokeWidth
+      ctx.beginPath()
+      ctx.arc(x + w, y, gizmoRadius, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.stroke()
+      ctx.fillStyle = '#ffff00'
+      ctx.fillRect(x + w - gizmoRadius, y + h - gizmoRadius, gizmoRadius * 2, gizmoRadius * 2)
+      ctx.strokeStyle = '#ffffff'
+      ctx.strokeRect(x + w - gizmoRadius, y + h - gizmoRadius, gizmoRadius * 2, gizmoRadius * 2)
+    })
+    if (hoveredShapeId && !selectedShapeIds.has(hoveredShapeId)) {
+      const shape = currentGrid.shapes.find((s) => s.id === hoveredShapeId)
+      if (shape) {
+        const padding = Math.max(1, 2 * scale)
+        const strokeWidth = Math.max(0.25, 0.8 * scale)
+        const half = shape.size / 2
+        ctx.strokeStyle = 'rgba(255, 105, 180, 0.9)'
+        ctx.lineWidth = strokeWidth
+        ctx.strokeRect(shape.x - half - padding, shape.y - half - padding, shape.size + padding * 2, shape.size + padding * 2)
+      }
+    }
+    ctx.restore()
+  }
+
+  function redraw() {
+    drawMainCanvas()
+    drawOverlayCanvas()
+  }
+
+  function sizeCanvases() {
+    const rect = canvasWrapper.getBoundingClientRect()
+    const settingsW = readPositiveInt(width.input, 1200)
+    const settingsH = readPositiveInt(height.input, 2400)
+    const aspect = settingsW / Math.max(1, settingsH)
+    const containerW = rect.width
+    const containerH = rect.height
+    let w, h
+    if (containerW / Math.max(1, containerH) > aspect) {
+      h = containerH
+      w = containerH * aspect
+    } else {
+      w = containerW
+      h = containerW / aspect
+    }
+    w = Math.max(1, Math.floor(w))
+    h = Math.max(1, Math.floor(h))
+    const dpr = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 3) || 1
+    const wBacking = Math.max(1, Math.floor(w * dpr))
+    const hBacking = Math.max(1, Math.floor(h * dpr))
+    if (mainCanvas.width !== wBacking || mainCanvas.height !== hBacking) {
+      mainCanvas.width = wBacking
+      mainCanvas.height = hBacking
+    }
+    if (overlayCanvas.width !== wBacking || overlayCanvas.height !== hBacking) {
+      overlayCanvas.width = wBacking
+      overlayCanvas.height = hBacking
+    }
+    canvasInner.style.width = w + 'px'
+    canvasInner.style.height = h + 'px'
+    mainCanvas.style.width = w + 'px'
+    mainCanvas.style.height = h + 'px'
+    overlayCanvas.style.width = w + 'px'
+    overlayCanvas.style.height = h + 'px'
+    redraw()
+  }
+
+  const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => sizeCanvases()) : null
+  if (resizeObserver) resizeObserver.observe(canvasWrapper)
+
+  /** Set the current grid (source of truth) and redraw. Syncs latestSvg for export. */
+  function setGrid(grid) {
+    currentGrid = grid
+    if (currentGrid) {
+      if (!viewState) {
+        const base = getBaseViewBox()
+        viewState = base ? { ...base } : null
+      }
+      latestSvg = renderArtGridSvg(currentGrid)
+    } else {
+      latestSvg = ''
+      viewState = null
+    }
+    sizeCanvases()
+  }
+
+  function syncLatestSvg() {
+    if (currentGrid) latestSvg = renderArtGridSvg(currentGrid)
+    else latestSvg = ''
   }
 
   const getColorsForGeneration = () =>
     colorPalette.length > 0 ? colorPalette : DEFAULT_COLORS
   
-  // Click outside SVG to disable stamp mode (setStampMode defined after controls)
-  // Also handle stamp placement here so clicks register reliably (svg pointerdown can be blocked by overlays)
+  // Click outside canvas: disable stamp mode and clear shape selection
   let setStampMode = null
   previewContent.addEventListener('click', (e) => {
-    const svg = previewContent.querySelector('svg')
-    const clickedOnSvg = e.target.closest('svg') || e.target.tagName === 'svg'
+    const clickedOnCanvas = e.target === mainCanvas || e.target === overlayCanvas
 
-    // Stamp placement: handle at previewContent level so we always receive the click
-    // Allow placing on top of other shapes (no clickedShape check)
-    if (stampMode && stampShape && svg) {
-      const ctm = svg.getScreenCTM()
-      if (ctm) {
-        const pt = svg.createSVGPoint()
-        pt.x = e.clientX
-        pt.y = e.clientY
-        const svgPoint = pt.matrixTransform(ctm.inverse())
-        const baseViewBox = readBaseViewBox(svg)
-        if (baseViewBox && svgPoint.x >= 0 && svgPoint.x <= baseViewBox.width && svgPoint.y >= 0 && svgPoint.y <= baseViewBox.height) {
-          const metadata = decodeSvgMetadata(svg)
-          if (metadata) {
-            e.stopPropagation()
-            e.preventDefault()
-            setLoadingOverlay(true, 'Placing stamp…')
-            const prevBodyCursor = document.body.style.getPropertyValue('cursor') || document.body.style.cursor
-            document.body.style.setProperty('cursor', 'wait', 'important')
-            preview.classList.add('stamp-placing')
-            // Force cursor refresh (some browsers only update on mouse move)
-            document.dispatchEvent(new MouseEvent('mousemove', { clientX: e.clientX, clientY: e.clientY, bubbles: true }))
-            // Double rAF so the browser paints the overlay before we block the main thread
+    if (!clickedOnCanvas) {
+      if (!stampMode) {
+        selectedShapeIds.clear()
+        selectedLayer = null
+        updateSelection()
+      }
+    }
+
+    if (stampMode && stampShape && currentGrid && clickedOnCanvas) {
+      const pt = toSceneCoords(e.clientX, e.clientY)
+      if (pt) {
+        const base = getBaseViewBox()
+        if (base && pt.x >= 0 && pt.x <= base.width && pt.y >= 0 && pt.y <= base.height) {
+          e.stopPropagation()
+          e.preventDefault()
+          setLoadingOverlay(true, 'Placing stamp…')
+          const prevBodyCursor = document.body.style.getPropertyValue('cursor') || document.body.style.cursor
+          document.body.style.setProperty('cursor', 'wait', 'important')
+          preview.classList.add('stamp-placing')
+          document.dispatchEvent(new MouseEvent('mousemove', { clientX: e.clientX, clientY: e.clientY, bubbles: true }))
+          requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                try {
-                  pushUndoState()
-                  const colors = getColorsForGeneration()
-                  const randomColor = colors[Math.floor(Math.random() * colors.length)]
-                  const baseVb = readBaseViewBox(svg)
-                  const exportW = readPositiveInt(width.input, 1200)
-                  const exportH = readPositiveInt(height.input, 2400)
-                  const { w: stampW, h: stampH } = baseVb ? { w: baseVb.width, h: baseVb.height } : getEditorSize(exportW, exportH)
-                  const editorScale = Math.min(stampW / exportW, stampH / exportH)
-                  const newShape = createStampShape(svgPoint.x, svgPoint.y, stampShape, randomColor, editorScale)
-                  metadata.shapes.push(newShape)
-                  const currentViewBoxRaw = svg.getAttribute('viewBox')
-                  const grid = {
-                    meta: {
-                      width: stampW,
-                      height: stampH,
-                      seed: readPositiveInt(seed.input, Date.now()),
-                      shapeCount: metadata.shapes.length,
-                    },
-                    shapes: metadata.shapes,
-                    background: getBackground(),
-                  }
-                  latestSvg = renderArtGridSvg(grid)
-                  const refreshedSvg = setSvgContent(latestSvg)
-                  if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-                  selectedShapeIds.clear()
-                  selectedShapeIds.add(newShape.id)
-                  bindSvgInteractions()
-                  updateSelection()
-                  status.textContent = 'Stamp placed.'
-                } finally {
-                  setLoadingOverlay(false)
-                  document.body.style.removeProperty('cursor')
-                  if (prevBodyCursor) document.body.style.cursor = prevBodyCursor
-                  preview.classList.remove('stamp-placing')
-                }
-              })
+              try {
+                pushUndoState()
+                const colors = getColorsForGeneration()
+                const randomColor = colors[Math.floor(Math.random() * colors.length)]
+                const exportW = readPositiveInt(width.input, 1200)
+                const exportH = readPositiveInt(height.input, 2400)
+                const { w: stampW, h: stampH } = base ? { w: base.width, h: base.height } : getEditorSize(exportW, exportH)
+                const editorScale = Math.min(stampW / exportW, stampH / exportH)
+                const newShape = createStampShape(pt.x, pt.y, stampShape, randomColor, editorScale)
+                currentGrid.shapes.push(newShape)
+                currentGrid.meta.shapeCount = currentGrid.shapes.length
+                syncLatestSvg()
+                selectedShapeIds.clear()
+                selectedShapeIds.add(newShape.id)
+                redraw()
+                updateSelection()
+                bindCanvasInteractions()
+                status.textContent = 'Stamp placed.'
+              } finally {
+                setLoadingOverlay(false)
+                document.body.style.removeProperty('cursor')
+                if (prevBodyCursor) document.body.style.cursor = prevBodyCursor
+                preview.classList.remove('stamp-placing')
+              }
             })
-            return
-          }
+          })
+          return
         }
       }
     }
 
-    if (stampMode && !clickedOnSvg && setStampMode) {
+    if (stampMode && !clickedOnCanvas && setStampMode) {
       setStampMode(false)
       status.textContent = 'Stamp mode disabled (clicked outside canvas).'
     }
@@ -733,6 +939,8 @@ export function mountArtGridTool(containerElement) {
   const canvasSizeRow = document.createElement('div')
   canvasSizeRow.className = 'canvas-size-row'
   canvasSizeRow.append(width.row, height.row)
+  width.input.addEventListener('change', () => sizeCanvases())
+  height.input.addEventListener('change', () => sizeCanvases())
   const shapeCount = createRangeField('Shape density', 'ag-shapes', saved?.shapeCount ?? 80, 20, 300)
   const minSize = createRangeField('Min shape size', 'ag-min-size', saved?.minSize ?? 8, 2, 100)
   const maxSize = createRangeField('Max shape size', 'ag-max-size', saved?.maxSize ?? 120, 10, 300)
@@ -951,28 +1159,12 @@ export function mountArtGridTool(containerElement) {
 
   const getBackground = () => ({ ...background })
   function applyBackground(pushUndo = true) {
-    const svg = previewContent.querySelector('svg')
-    if (!svg) return
+    if (!currentGrid) return
     if (pushUndo) pushUndoState()
-    const metadata = decodeSvgMetadata(svg)
-    if (!metadata) return
-    const baseViewBox = readBaseViewBox(svg)
-    const exportW = readPositiveInt(width.input, 1200)
-    const exportH = readPositiveInt(height.input, 2400)
-    const { w: editorW, h: editorH } = getEditorSize(exportW, exportH)
-    const w = baseViewBox ? baseViewBox.width : editorW
-    const h = baseViewBox ? baseViewBox.height : editorH
-    metadata.background = getBackground()
-    const grid = {
-      meta: { width: w, height: h, seed: metadata.seed ?? readPositiveInt(seed.input, Date.now()), shapeCount: metadata.shapes.length },
-      shapes: metadata.shapes,
-      background: getBackground(),
-    }
-    const currentViewBoxRaw = svg.getAttribute('viewBox')
-    latestSvg = renderArtGridSvg(grid)
-    const refreshedSvg = setSvgContent(latestSvg)
-    if (refreshedSvg && currentViewBoxRaw) refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-    bindSvgInteractions()
+    currentGrid.background = getBackground()
+    syncLatestSvg()
+    redraw()
+    bindCanvasInteractions()
   }
   const backgroundUpdateOverlayMessage = 'Updating background…'
   let deferredApplyBackgroundScheduled = false
@@ -1403,6 +1595,7 @@ export function mountArtGridTool(containerElement) {
   })
   const runExport = (which) => {
     closeSaveDropdown()
+    syncLatestSvg()
     setLoadingOverlay(true, 'Exporting…')
     setTimeout(async () => {
       try {
@@ -1462,13 +1655,11 @@ export function mountArtGridTool(containerElement) {
   stampIcon.addEventListener('click', () => setStampMode(true))
 
   centerCameraBtn.addEventListener('click', () => {
-    const svg = previewContent.querySelector('svg')
-    if (!svg) return
-    const baseViewBox = svg.getAttribute('data-base-viewbox')
-    if (!baseViewBox) return
-    const metadata = decodeSvgMetadata(svg)
-    svg.setAttribute('viewBox', baseViewBox)
-    if (metadata) persistMetadata(svg, metadata)
+    const base = getBaseViewBox()
+    if (!base) return
+    viewState = { ...base }
+    redraw()
+    if (currentGrid) persistMetadata()
   })
 
   // Stamp tool implementation
@@ -1495,8 +1686,8 @@ export function mountArtGridTool(containerElement) {
       } else {
         status.textContent = 'Custom stamp sheet loaded. Click a cell to select.'
       }
-      // If no SVG on canvas yet, generate one now that stamps are available (overlay stays visible; generate() will hide it)
-      if (previewContent && !previewContent.querySelector('svg') && typeof generate === 'function') {
+      // If no grid yet, generate one now that stamps are available (overlay stays visible; generate() will hide it)
+      if (previewContent && !currentGrid && typeof generate === 'function') {
         generate()
       } else {
         setLoadingOverlay(false)
@@ -1925,12 +2116,8 @@ export function mountArtGridTool(containerElement) {
     )
   }
 
-  function persistMetadata(svg, metadata) {
-    const metadataNode = svg.querySelector('#occult-floorplan-meta')
-    if (metadataNode != null) metadataNode.textContent = encodeSvgMetadata(metadata)
-    const stampPreview = svg.querySelector('#stamp-preview')
-    if (stampPreview) stampPreview.remove()
-    latestSvg = svg.outerHTML
+  function persistMetadata() {
+    syncLatestSvg()
   }
 
   function renderLayerList(metadata) {
@@ -2018,356 +2205,124 @@ export function mountArtGridTool(containerElement) {
   }
 
   function updateSelection() {
-    const svg = previewContent.querySelector('svg')
-    if (!svg) return
-    const metadata = decodeSvgMetadata(svg)
-    if (!metadata) return
-    
-    // Update shape visual selection
-    svg.querySelectorAll('.art-shape').forEach((element) => {
-      const id = element.getAttribute('data-id')
-      element.classList.toggle('is-selected', id != null && selectedShapeIds.has(id))
-    })
-    
-    // Add selection outlines
-    let outlineGroup = svg.querySelector('#selection-outlines')
-    if (!outlineGroup) {
-      outlineGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-      outlineGroup.id = 'selection-outlines'
-      svg.appendChild(outlineGroup)
-    }
-    outlineGroup.innerHTML = ''
-    
-    const baseViewBox = readBaseViewBox(svg)
-    const refSize = 1200
-    const canvasSize = baseViewBox ? Math.min(baseViewBox.width, baseViewBox.height) : refSize
-    const scale = canvasSize / refSize
-    const padding = Math.max(0.5, 1.5 * scale)
-    const outlineStrokeWidth = Math.max(0.25, 0.7 * scale)
-    const outlineDashLen = Math.max(0.5, 2 * scale)
-    const gizmoRadius = Math.max(1.5, 4 * scale)
-    const gizmoStrokeWidth = Math.max(0.25, 0.7 * scale)
-
-    selectedShapeIds.forEach(id => {
-      const shape = metadata.shapes.find(s => s.id === id)
-      if (!shape) return
-      
-      const outlineX = shape.x - shape.size / 2 - padding
-      const outlineY = shape.y - shape.size / 2 - padding
-      const outlineWidth = shape.size + padding * 2
-      const outlineHeight = shape.size + padding * 2
-      
-      const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-      outline.setAttribute('x', outlineX)
-      outline.setAttribute('y', outlineY)
-      outline.setAttribute('width', outlineWidth)
-      outline.setAttribute('height', outlineHeight)
-      outline.setAttribute('fill', 'none')
-      outline.setAttribute('stroke', '#00ffff')
-      outline.setAttribute('stroke-width', String(outlineStrokeWidth))
-      outline.setAttribute('stroke-dasharray', `${outlineDashLen} ${outlineDashLen}`)
-      outline.style.pointerEvents = 'none'
-      outlineGroup.appendChild(outline)
-      
-      // Add rotation gizmo in top right corner
-      const rotateGizmoX = outlineX + outlineWidth
-      const rotateGizmoY = outlineY
-      
-      const rotateGizmo = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-      rotateGizmo.setAttribute('cx', rotateGizmoX)
-      rotateGizmo.setAttribute('cy', rotateGizmoY)
-      rotateGizmo.setAttribute('r', gizmoRadius)
-      rotateGizmo.setAttribute('fill', '#00ffff')
-      rotateGizmo.setAttribute('stroke', '#ffffff')
-      rotateGizmo.setAttribute('stroke-width', String(gizmoStrokeWidth))
-      rotateGizmo.style.cursor = 'grab'
-      rotateGizmo.style.pointerEvents = 'all'
-      rotateGizmo.setAttribute('data-rotation-gizmo', id)
-      const rotateTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title')
-      rotateTitle.textContent = 'Rotate (snaps to 45°; hold Shift for free rotation)'
-      rotateGizmo.appendChild(rotateTitle)
-      outlineGroup.appendChild(rotateGizmo)
-      
-      // Add scale gizmo in bottom right corner
-      const scaleGizmoX = outlineX + outlineWidth
-      const scaleGizmoY = outlineY + outlineHeight
-      
-      const scaleGizmo = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-      scaleGizmo.setAttribute('x', scaleGizmoX - gizmoRadius)
-      scaleGizmo.setAttribute('y', scaleGizmoY - gizmoRadius)
-      scaleGizmo.setAttribute('width', gizmoRadius * 2)
-      scaleGizmo.setAttribute('height', gizmoRadius * 2)
-      scaleGizmo.setAttribute('fill', '#ffff00')
-      scaleGizmo.setAttribute('stroke', '#ffffff')
-      scaleGizmo.setAttribute('stroke-width', String(gizmoStrokeWidth))
-      scaleGizmo.style.cursor = 'nwse-resize'
-      scaleGizmo.style.pointerEvents = 'all'
-      scaleGizmo.setAttribute('data-scale-gizmo', id)
-      outlineGroup.appendChild(scaleGizmo)
-    })
-    
+    drawOverlayCanvas()
+    const metadata = currentGrid ? { shapes: currentGrid.shapes } : { shapes: [] }
     renderLayerList(metadata)
     renderEntityList(metadata)
   }
 
-  function bindSvgInteractions() {
-    const svg = previewContent.querySelector('svg')
-    if (!svg) return
-    const metadata = decodeSvgMetadata(svg)
-    if (!metadata) return
-    const viewBox = parseViewBox(svg)
-    if (!viewBox) return
-    
-    metadata.shapes = Array.isArray(metadata.shapes) ? metadata.shapes : []
-    if (!metadata.background) metadata.background = getBackground()
-    
-    // Assign layers to shapes that don't have them
-    let needsUpdate = false
-    metadata.shapes.forEach((shape, index) => {
+  function bindCanvasInteractions() {
+    if (!currentGrid) return
+    currentGrid.shapes = Array.isArray(currentGrid.shapes) ? currentGrid.shapes : []
+    if (!currentGrid.background) currentGrid.background = getBackground()
+    currentGrid.shapes.forEach((shape, index) => {
       if (!shape.layer || shape.layer < 1) {
-        shape.layer = (index % 5) + 1 // Distribute across 5 layers
-        needsUpdate = true
+        shape.layer = (index % 5) + 1
       }
     })
-    
-    if (needsUpdate) {
-      // Update the SVG elements with layer data
-      svg.querySelectorAll('.art-shape').forEach((element) => {
-        const id = element.getAttribute('data-id')
-        const shape = metadata.shapes.find(s => s.id === id)
-        if (shape && shape.layer) {
-          element.setAttribute('data-layer', shape.layer)
-        }
-      })
-    persistMetadata(svg, metadata)
-    }
-
-    // Add canvas boundary for editor preview only (not exported)
-    if (!svg.querySelector('.canvas-boundary')) {
-      const baseViewBox = readBaseViewBox(svg)
-      if (baseViewBox) {
-        const refSize = 1200
-        const canvasSize = Math.min(baseViewBox.width, baseViewBox.height)
-        const scale = canvasSize / refSize
-        const strokeWidth = Math.max(0.25, 1 * scale)
-        const dashLen = Math.max(1, 6 * scale)
-        const gapLen = Math.max(1, 4 * scale)
-        const boundary = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-        boundary.classList.add('canvas-boundary')
-        boundary.setAttribute('x', String(strokeWidth / 2))
-        boundary.setAttribute('y', String(strokeWidth / 2))
-        boundary.setAttribute('width', baseViewBox.width - strokeWidth)
-        boundary.setAttribute('height', baseViewBox.height - strokeWidth)
-        boundary.setAttribute('fill', 'none')
-        boundary.setAttribute('stroke', '#00ffff')
-        boundary.setAttribute('stroke-width', String(strokeWidth))
-        boundary.setAttribute('stroke-dasharray', `${dashLen} ${gapLen}`)
-        boundary.setAttribute('opacity', '0.8')
-        boundary.style.pointerEvents = 'none'
-        svg.appendChild(boundary)
-      }
-    }
-
+    syncLatestSvg()
     updateSelection()
 
-    const svgPoint = svg.createSVGPoint()
-    const toSvgCoordinates = (event) => {
-      const ctm = svg.getScreenCTM()
-      if (!ctm) return null
-      svgPoint.x = event.clientX
-      svgPoint.y = event.clientY
-      return svgPoint.matrixTransform(ctm.inverse())
-    }
-
-    // Hover outline - only when grab/selection tool active (!stampMode)
-    let hoverOutlineEl = null
-    let hoveredShapeEl = null
     const clearHoverOutline = () => {
-      if (hoverOutlineEl) {
-        hoverOutlineEl.remove()
-        hoverOutlineEl = null
-      }
-      const hoverOutlinesGroup = svg.querySelector('#hover-outlines')
-      if (hoverOutlinesGroup) hoverOutlinesGroup.remove()
-      hoveredShapeEl = null
+      hoveredShapeId = null
+      drawOverlayCanvas()
     }
-    const updateHoverOutline = (target) => {
+    const updateHoverOutline = (sceneX, sceneY) => {
       if (stampMode) return
-      const shapeEl = target?.closest('.art-shape')
-      if (shapeEl?.closest('#selection-outlines')) return
-      if (shapeEl === hoveredShapeEl) return
-      clearHoverOutline()
-      hoveredShapeEl = shapeEl
-      if (!shapeEl) return
-      const baseViewBox = readBaseViewBox(svg)
-      const refSize = 1200
-      const canvasSize = baseViewBox ? Math.min(baseViewBox.width, baseViewBox.height) : refSize
-      const scale = canvasSize / refSize
-      const strokeWidth = Math.max(0.25, 0.8 * scale)
-      const padding = Math.max(1, 2 * scale)
-      const planX = parseFloat(shapeEl.getAttribute('data-plan-x')) || 0
-      const planY = parseFloat(shapeEl.getAttribute('data-plan-y')) || 0
-      const transformStr = shapeEl.getAttribute('transform') || ''
-      const rotateMatch = transformStr.match(/rotate\s*\(\s*([-\d.]+)/)
-      const rotationRad = rotateMatch ? (parseFloat(rotateMatch[1]) * Math.PI) / 180 : 0
-      const cos = Math.cos(rotationRad)
-      const sin = Math.sin(rotationRad)
-      const localBBox = shapeEl.getBBox()
-      const toRoot = (lx, ly) => ({
-        x: planX + lx * cos - ly * sin,
-        y: planY + lx * sin + ly * cos,
-      })
-      const c1 = toRoot(localBBox.x, localBBox.y)
-      const c2 = toRoot(localBBox.x + localBBox.width, localBBox.y)
-      const c3 = toRoot(localBBox.x + localBBox.width, localBBox.y + localBBox.height)
-      const c4 = toRoot(localBBox.x, localBBox.y + localBBox.height)
-      const minX = Math.min(c1.x, c2.x, c3.x, c4.x)
-      const minY = Math.min(c1.y, c2.y, c3.y, c4.y)
-      const maxX = Math.max(c1.x, c2.x, c3.x, c4.x)
-      const maxY = Math.max(c1.y, c2.y, c3.y, c4.y)
-      const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-      outline.setAttribute('x', minX - padding)
-      outline.setAttribute('y', minY - padding)
-      outline.setAttribute('width', maxX - minX + padding * 2)
-      outline.setAttribute('height', maxY - minY + padding * 2)
-      outline.setAttribute('fill', 'none')
-      outline.setAttribute('stroke', 'rgba(255, 105, 180, 0.9)')
-      outline.setAttribute('stroke-width', String(strokeWidth))
-      outline.style.pointerEvents = 'none'
-      outline.classList.add('hover-outline')
-      let hoverOutlinesGroup = svg.querySelector('#hover-outlines')
-      if (!hoverOutlinesGroup) {
-        hoverOutlinesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-        hoverOutlinesGroup.id = 'hover-outlines'
-        svg.appendChild(hoverOutlinesGroup)
+      const hit = hitTestShapes(sceneX, sceneY)
+      const nextId = hit ? hit.id : null
+      if (nextId !== hoveredShapeId) {
+        hoveredShapeId = nextId
+        drawOverlayCanvas()
       }
-      hoverOutlinesGroup.appendChild(outline)
-      hoverOutlineEl = outline
     }
-
-    svg.addEventListener('pointerover', (e) => {
-      if (stampMode && stampShape) {
-        clearHoverOutline()
-      } else {
-        updateHoverOutline(e.target)
-      }
-    })
-    let hoverRafId = null
-    let lastHoverTarget = null
-    svg.addEventListener('pointermove', (e) => {
-      if (stampMode && stampShape) {
-        clearHoverOutline()
-      } else {
-        lastHoverTarget = e.target
-        if (hoverRafId == null) {
-          hoverRafId = requestAnimationFrame(() => {
-            hoverRafId = null
-            if (lastHoverTarget != null) updateHoverOutline(lastHoverTarget)
-          })
-        }
-      }
-    })
-    svg.addEventListener('pointerout', (e) => {
-      if (!e.relatedTarget || !svg.contains(e.relatedTarget)) {
-        clearHoverOutline()
-      }
-    })
 
     const toViewBoxDelta = (deltaPixelsX, deltaPixelsY) => {
-      const rect = svg.getBoundingClientRect()
+      const rect = mainCanvas.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return null
+      const vt = getCurrentViewTransform()
       return {
-        x: (deltaPixelsX / rect.width) * viewBox.width,
-        y: (deltaPixelsY / rect.height) * viewBox.height,
+        x: (deltaPixelsX / rect.width) * vt.width,
+        y: (deltaPixelsY / rect.height) * vt.height,
       }
     }
-    const baseViewBox = readBaseViewBox(svg)
-    const minViewBoxWidth = Math.max(1, (baseViewBox?.width ?? viewBox.width) * 0.2)
-    const minViewBoxHeight = Math.max(1, (baseViewBox?.height ?? viewBox.height) * 0.2)
-    const maxViewBoxWidth = Math.max(viewBox.width * 8, (baseViewBox?.width ?? viewBox.width) * 8)
-    const maxViewBoxHeight = Math.max(viewBox.height * 8, (baseViewBox?.height ?? viewBox.height) * 8)
+    const base = getBaseViewBox()
+    const minViewBoxWidth = Math.max(1, (base?.width ?? 400) * 0.2)
+    const minViewBoxHeight = Math.max(1, (base?.height ?? 400) * 0.2)
+    const maxViewBoxWidth = Math.max(400 * 8, (base?.width ?? 400) * 8)
+    const maxViewBoxHeight = Math.max(400 * 8, (base?.height ?? 400) * 8)
     const zoomAtPointer = (event) => {
-      const point = toSvgCoordinates(event)
-      const currentViewBox = parseViewBox(svg)
-      if (!point || !currentViewBox) return
+      const point = toSceneCoords(event.clientX, event.clientY)
+      const current = getCurrentViewTransform()
+      if (!point) return
       let delta = event.deltaY
       if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) delta *= 16
       if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) delta *= 240
       const clampedDelta = Math.max(-120, Math.min(120, delta))
       const zoomFactor = Math.pow(1.0018, clampedDelta)
-      const nextWidth = clamp(currentViewBox.width * zoomFactor, minViewBoxWidth, maxViewBoxWidth)
-      const nextHeight = clamp(currentViewBox.height * zoomFactor, minViewBoxHeight, maxViewBoxHeight)
-      if (
-        Math.abs(nextWidth - currentViewBox.width) < 0.0001 &&
-        Math.abs(nextHeight - currentViewBox.height) < 0.0001
-      ) return
-      const anchorX = (point.x - currentViewBox.minX) / currentViewBox.width
-      const anchorY = (point.y - currentViewBox.minY) / currentViewBox.height
-      const nextViewBox = {
+      const nextWidth = clamp(current.width * zoomFactor, minViewBoxWidth, maxViewBoxWidth)
+      const nextHeight = clamp(current.height * zoomFactor, minViewBoxHeight, maxViewBoxHeight)
+      if (Math.abs(nextWidth - current.width) < 0.0001 && Math.abs(nextHeight - current.height) < 0.0001) return
+      const anchorX = (point.x - current.minX) / current.width
+      const anchorY = (point.y - current.minY) / current.height
+      viewState = {
         minX: point.x - anchorX * nextWidth,
         minY: point.y - anchorY * nextHeight,
         width: nextWidth,
         height: nextHeight,
       }
-      svg.setAttribute('viewBox', `${nextViewBox.minX} ${nextViewBox.minY} ${nextViewBox.width} ${nextViewBox.height}`)
+      redraw()
     }
 
-    svg.onpointerdown = (event) => {
+    mainCanvas.onpointerdown = null
+    mainCanvas.onpointermove = null
+    mainCanvas.onpointerup = null
+    mainCanvas.onpointercancel = null
+    mainCanvas.onwheel = null
+    mainCanvas.onpointerover = null
+    mainCanvas.onpointerout = null
+
+    let hoverRafId = null
+    let lastHoverCoords = null
+    mainCanvas.onpointermove = (e) => {
+      if (dragState) return
+      if (stampMode && stampShape) {
+        if (hoveredShapeId != null) clearHoverOutline()
+        return
+      }
+      lastHoverCoords = { x: e.clientX, y: e.clientY }
+      if (hoverRafId == null) {
+        hoverRafId = requestAnimationFrame(() => {
+          hoverRafId = null
+          if (lastHoverCoords) {
+            const pt = toSceneCoords(lastHoverCoords.x, lastHoverCoords.y)
+            if (pt) updateHoverOutline(pt.x, pt.y)
+          }
+        })
+      }
+    }
+    mainCanvas.onpointerover = (e) => {
+      if (!stampMode && lastHoverCoords == null) {
+        const pt = toSceneCoords(e.clientX, e.clientY)
+        if (pt) updateHoverOutline(pt.x, pt.y)
+      }
+    }
+    mainCanvas.onpointerout = () => {
+      hoveredShapeId = null
+      drawOverlayCanvas()
+    }
+
+    let lastPanClientX = 0
+    let lastPanClientY = 0
+    let panRafId = null
+    mainCanvas.onpointerdown = (event) => {
+      const rect = mainCanvas.getBoundingClientRect()
+      const x = event.clientX - rect.left
+      const y = event.clientY - rect.top
+      if (x < 0 || x >= rect.width || y < 0 || y >= rect.height) return
       clearHoverOutline()
-      // Check for rotation gizmo click
-      const rotateGizmo = event.target.closest('[data-rotation-gizmo]')
-      if (rotateGizmo) {
-        const id = rotateGizmo.getAttribute('data-rotation-gizmo')
-        const shape = metadata.shapes.find((entry) => entry.id === id)
-        const point = toSvgCoordinates(event)
-        if (!id || !shape || !point) return
-        
-        const startAngle = Math.atan2(point.y - shape.y, point.x - shape.x) * (180 / Math.PI)
-        stateBeforeDrag = getCurrentState()
-        dragState = {
-          kind: 'rotate',
-          id,
-          element: rotateGizmo,
-          shapeElement: svg.querySelector(`.art-shape[data-id="${id}"]`),
-          centerX: shape.x,
-          centerY: shape.y,
-          startRotation: shape.rotation,
-          startAngle,
-        }
-        rotateGizmo.setPointerCapture(event.pointerId)
-        rotateGizmo.style.cursor = 'grabbing'
-        event.preventDefault()
-        return
-      }
-      
-      // Check for scale gizmo click
-      const scaleGizmo = event.target.closest('[data-scale-gizmo]')
-      if (scaleGizmo) {
-        const id = scaleGizmo.getAttribute('data-scale-gizmo')
-        const shape = metadata.shapes.find((entry) => entry.id === id)
-        const point = toSvgCoordinates(event)
-        if (!id || !shape || !point) return
-        
-        const startDistance = Math.sqrt(
-          Math.pow(point.x - shape.x, 2) + Math.pow(point.y - shape.y, 2)
-        )
-        stateBeforeDrag = getCurrentState()
-        dragState = {
-          kind: 'scale',
-          id,
-          element: scaleGizmo,
-          shapeElement: svg.querySelector(`.art-shape[data-id="${id}"]`),
-          centerX: shape.x,
-          centerY: shape.y,
-          startSize: shape.size,
-          startDistance,
-        }
-        scaleGizmo.setPointerCapture(event.pointerId)
-        event.preventDefault()
-        return
-      }
-      
-      // Stamp mode - placement handled by previewContent click; here we just prevent pan/drag
+      const point = toSceneCoords(event.clientX, event.clientY)
+      if (!point) return
       if (stampMode && !stampShape) {
         showToast('Select a stamp first')
         event.preventDefault()
@@ -2377,75 +2332,62 @@ export function mountArtGridTool(containerElement) {
         event.preventDefault()
         return
       }
-      
-      const shapeElement = event.target.closest('.art-shape')
-      if (shapeElement) {
-        const id = shapeElement.getAttribute('data-id')
-        const shape = metadata.shapes.find((entry) => entry.id === id)
-        const point = toSvgCoordinates(event)
-        if (!id || !shape || !point) return
-        
-        // Multi-select with shift
+      const gizmo = hitTestGizmos(point.x, point.y)
+      if (gizmo && gizmo.kind === 'rotate') {
+        const shape = currentGrid.shapes.find((s) => s.id === gizmo.id)
+        if (!shape) return
+        const startAngle = Math.atan2(point.y - shape.y, point.x - shape.x) * (180 / Math.PI)
+        stateBeforeDrag = getCurrentState()
+        dragState = { kind: 'rotate', id: gizmo.id, centerX: shape.x, centerY: shape.y, startRotation: shape.rotation, startAngle }
+        mainCanvas.setPointerCapture(event.pointerId)
+        event.preventDefault()
+        return
+      }
+      if (gizmo && gizmo.kind === 'scale') {
+        const shape = currentGrid.shapes.find((s) => s.id === gizmo.id)
+        if (!shape) return
+        const startDistance = Math.hypot(point.x - shape.x, point.y - shape.y)
+        stateBeforeDrag = getCurrentState()
+        dragState = { kind: 'scale', id: gizmo.id, centerX: shape.x, centerY: shape.y, startSize: shape.size, startDistance }
+        mainCanvas.setPointerCapture(event.pointerId)
+        event.preventDefault()
+        return
+      }
+      const hitShape = hitTestShapes(point.x, point.y)
+      if (hitShape) {
+        const id = hitShape.id
         if (event.shiftKey) {
-          if (selectedShapeIds.has(id)) {
-            selectedShapeIds.delete(id)
-          } else {
-            selectedShapeIds.add(id)
-          }
+          if (selectedShapeIds.has(id)) selectedShapeIds.delete(id)
+          else selectedShapeIds.add(id)
           updateSelection()
           event.preventDefault()
           return
         }
-        
-        // Single select and start drag
         if (!selectedShapeIds.has(id)) {
           selectedShapeIds.clear()
           selectedShapeIds.add(id)
           selectedLayer = null
           updateSelection()
         }
-        
-        // Use position from the element so first drag follows cursor (metadata can be stale after re-renders)
-        const planX = parseFloat(shapeElement.getAttribute('data-plan-x')) || shape.x
-        const planY = parseFloat(shapeElement.getAttribute('data-plan-y')) || shape.y
         stateBeforeDrag = getCurrentState()
-        dragState = {
-          kind: 'shape',
-          id,
-          element: shapeElement,
-          startX: planX,
-          startY: planY,
-          offsetX: point.x - planX,
-          offsetY: point.y - planY,
-        }
-        shape.x = planX
-        shape.y = planY
-        shapeElement.setPointerCapture(event.pointerId)
+        dragState = { kind: 'shape', id, startX: hitShape.x, startY: hitShape.y, offsetX: point.x - hitShape.x, offsetY: point.y - hitShape.y }
+        mainCanvas.setPointerCapture(event.pointerId)
         event.preventDefault()
         return
       }
       selectedShapeIds.clear()
       selectedLayer = null
-      const currentViewBox = parseViewBox(svg)
-      if (!currentViewBox) return
       updateSelection()
-      dragState = {
-        kind: 'pan',
-        element: svg,
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startViewBox: currentViewBox,
-      }
-      svg.setPointerCapture(event.pointerId)
-      svg.classList.add('is-panning')
+      const current = getCurrentViewTransform()
+      dragState = { kind: 'pan', startClientX: event.clientX, startClientY: event.clientY, startViewBox: { ...current } }
+      mainCanvas.setPointerCapture(event.pointerId)
+      previewContent.classList.add('is-panning')
       event.preventDefault()
     }
 
-    let lastPanClientX = 0
-    let lastPanClientY = 0
-    let panRafId = null
     const onPointerMove = (event) => {
       if (!dragState) return
+      const point = toSceneCoords(event.clientX, event.clientY)
       if (dragState.kind === 'pan') {
         lastPanClientX = event.clientX
         lastPanClientY = event.clientY
@@ -2453,158 +2395,99 @@ export function mountArtGridTool(containerElement) {
           panRafId = requestAnimationFrame(() => {
             panRafId = null
             if (!dragState || dragState.kind !== 'pan') return
-            const delta = toViewBoxDelta(
-              lastPanClientX - dragState.startClientX,
-              lastPanClientY - dragState.startClientY
-            )
+            const delta = toViewBoxDelta(lastPanClientX - dragState.startClientX, lastPanClientY - dragState.startClientY)
             if (!delta) return
-            svg.setAttribute(
-              'viewBox',
-              `${dragState.startViewBox.minX - delta.x} ${dragState.startViewBox.minY - delta.y} ${dragState.startViewBox.width} ${dragState.startViewBox.height}`
-            )
+            viewState = {
+              minX: dragState.startViewBox.minX - delta.x,
+              minY: dragState.startViewBox.minY - delta.y,
+              width: dragState.startViewBox.width,
+              height: dragState.startViewBox.height,
+            }
+            redraw()
           })
         }
         return
       }
-      if (dragState.kind === 'rotate') {
-        const point = toSvgCoordinates(event)
-        if (!point) return
-        
+      if (dragState.kind === 'rotate' && point) {
+        const shape = currentGrid.shapes.find((s) => s.id === dragState.id)
+        if (!shape) return
         const currentAngle = Math.atan2(point.y - dragState.centerY, point.x - dragState.centerX) * (180 / Math.PI)
-        const angleDelta = currentAngle - dragState.startAngle
-        let newRotation = (dragState.startRotation + angleDelta) % 360
+        let newRotation = (dragState.startRotation + (currentAngle - dragState.startAngle)) % 360
         if (newRotation < 0) newRotation += 360
-        if (!event.shiftKey) {
-          newRotation = Math.round(newRotation / 45) * 45
-          newRotation = newRotation % 360
-        }
-        
-        const shape = metadata.shapes.find((entry) => entry.id === dragState.id)
-        if (!shape) return
-        
-        shape.rotation = newRotation
-        const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`
-        dragState.shapeElement.setAttribute('transform', transform)
+        if (!event.shiftKey) newRotation = Math.round(newRotation / 45) * 45
+        shape.rotation = newRotation % 360
+        redraw()
         return
       }
-      if (dragState.kind === 'scale') {
-        const point = toSvgCoordinates(event)
-        if (!point) return
-        
-        const currentDistance = Math.sqrt(
-          Math.pow(point.x - dragState.centerX, 2) + Math.pow(point.y - dragState.centerY, 2)
-        )
-        
-        const scaleFactor = currentDistance / dragState.startDistance
-        const newSize = Math.max(4, dragState.startSize * scaleFactor) // Minimum size of 4
-        
-        const shape = metadata.shapes.find((entry) => entry.id === dragState.id)
+      if (dragState.kind === 'scale' && point) {
+        const shape = currentGrid.shapes.find((s) => s.id === dragState.id)
         if (!shape) return
-        
-        shape.size = newSize
-        
-        // Update the shape's visual representation
-        const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`
-        dragState.shapeElement.setAttribute('transform', transform)
-        
-        // Update the shape's size attribute based on type
-        if (shape.type === 'circle') {
-          const circle = dragState.shapeElement.querySelector('circle')
-          if (circle) {
-            circle.setAttribute('r', newSize / 2)
-          }
-        } else if (shape.type === 'stamp') {
-          const path = dragState.shapeElement.querySelector('path')
-          const useEditor = shape.stampPathEditor != null && shape.stampWidthEditor != null && shape.stampHeightEditor != null
-          const w = useEditor ? shape.stampWidthEditor : shape.stampWidth
-          const h = useEditor ? shape.stampHeightEditor : shape.stampHeight
-          if (path && w != null && h != null) {
-            const res = useEditor ? 1 : (shape.stampPathResolution || 1)
-            const scale = (newSize / Math.max(w, h)) * res
-            const centerX = w / (2 * res)
-            const centerY = h / (2 * res)
-            path.setAttribute('transform', `translate(${-centerX * scale}, ${-centerY * scale}) scale(${scale})`)
-          }
-        } else {
-          // Rectangle
-          const rect = dragState.shapeElement.querySelector('rect')
-          if (rect) {
-            const halfSize = newSize / 2
-            rect.setAttribute('x', -halfSize)
-            rect.setAttribute('y', -halfSize)
-            rect.setAttribute('width', newSize)
-            rect.setAttribute('height', newSize)
-          }
-        }
+        const currentDistance = Math.hypot(point.x - dragState.centerX, point.y - dragState.centerY)
+        shape.size = Math.max(4, dragState.startSize * (currentDistance / dragState.startDistance))
+        redraw()
         return
       }
-      const point = toSvgCoordinates(event)
-      if (!point) return
-      if (dragState.kind === 'shape') {
-        const shape = metadata.shapes.find((entry) => entry.id === dragState.id)
+      if (dragState.kind === 'shape' && point) {
+        const shape = currentGrid.shapes.find((s) => s.id === dragState.id)
         if (!shape) return
         shape.x = point.x - dragState.offsetX
         shape.y = point.y - dragState.offsetY
-        const transform = `translate(${shape.x}, ${shape.y}) rotate(${shape.rotation})`
-        dragState.element.setAttribute('transform', transform)
-        dragState.element.setAttribute('data-plan-x', String(shape.x))
-        dragState.element.setAttribute('data-plan-y', String(shape.y))
+        redraw()
       }
     }
-    svg.addEventListener('pointermove', onPointerMove, { capture: true })
+    mainCanvas.onpointermove = onPointerMove
 
     const endDrag = (event) => {
       if (!dragState) return
-      clearHoverOutline()
-      dragState.element.releasePointerCapture(event.pointerId)
-      svg.classList.remove('is-panning')
-      
-      // Reset rotation gizmo cursor if it was being dragged
-      if (dragState.kind === 'rotate') {
-        const gizmo = svg.querySelector(`[data-rotation-gizmo="${dragState.id}"]`)
-        if (gizmo) {
-          gizmo.style.cursor = 'grab'
-        }
-      }
-      
+      mainCanvas.releasePointerCapture(event.pointerId)
+      previewContent.classList.remove('is-panning')
       if (stateBeforeDrag != null && (dragState.kind === 'shape' || dragState.kind === 'rotate' || dragState.kind === 'scale')) {
         pushUndoState(stateBeforeDrag)
         stateBeforeDrag = null
       }
       dragState = null
-      persistMetadata(svg, metadata)
+      persistMetadata()
       updateSelection()
     }
-    svg.onpointerup = endDrag
-    svg.onpointercancel = endDrag
-    svg.onwheel = (event) => {
+    mainCanvas.onpointerup = endDrag
+    mainCanvas.onpointercancel = endDrag
+    mainCanvas.onwheel = (e) => {
       if (dragState) return
-      event.preventDefault()
-      zoomAtPointer(event)
+      e.preventDefault()
+      zoomAtPointer(e)
     }
   }
 
   function getCurrentState() {
-    const el = previewContent.querySelector('svg')
     return {
-      svg: el ? el.outerHTML : latestSvg,
-      viewBox: el ? el.getAttribute('viewBox') : null,
+      grid: currentGrid ? structuredClone(currentGrid) : null,
+      viewState: viewState ? { ...viewState } : null,
     }
   }
 
   function pushUndoState(state) {
     const toPush = state ?? getCurrentState()
-    if (!toPush.svg) return
+    if (!toPush.grid) return
     undoStack.push(toPush)
     if (undoStack.length > MAX_UNDO) undoStack.shift()
     redoStack.length = 0
   }
 
   function applyState(state) {
-    latestSvg = state.svg
-    const el = setSvgContent(state.svg)
-    if (el && state.viewBox != null && state.viewBox !== '') el.setAttribute('viewBox', state.viewBox)
-    bindSvgInteractions()
+    currentGrid = state.grid ? structuredClone(state.grid) : null
+    viewState = state.viewState ? { ...state.viewState } : null
+    if (currentGrid) {
+      latestSvg = renderArtGridSvg(currentGrid)
+      if (!viewState) {
+        const base = getBaseViewBox()
+        viewState = base ? { ...base } : null
+      }
+    } else {
+      latestSvg = ''
+      viewState = null
+    }
+    sizeCanvases()
+    bindCanvasInteractions()
     updateSelection()
   }
 
@@ -2651,13 +2534,10 @@ export function mountArtGridTool(containerElement) {
           stamps: stampPool,
         }
         seed.input.value = String(options.seed)
-        const currentSvg = previewContent.querySelector('svg')
         const existingStampShapes = (() => {
           if (selectedLayer === 'stamps') return []
-          if (!currentSvg) return []
-          const metadata = decodeSvgMetadata(currentSvg)
-          if (!metadata?.shapes) return []
-          return metadata.shapes.filter((s) => s.layer === 'stamps')
+          if (!currentGrid?.shapes) return []
+          return currentGrid.shapes.filter((s) => s.layer === 'stamps')
         })()
         const grid = generateArtGrid(options)
         if (existingStampShapes.length > 0) {
@@ -2665,26 +2545,18 @@ export function mountArtGridTool(containerElement) {
           grid.meta.shapeCount = grid.shapes.length
         }
         grid.background = getBackground()
-        latestSvg = renderArtGridSvg(grid)
-        const generatedSvg = setSvgContent(latestSvg)
-        if (generatedSvg) {
-          const baseViewBox = readBaseViewBox(generatedSvg) ?? { minX: 0, minY: 0, width: options.width, height: options.height }
-          const W = baseViewBox.width
-          const H = baseViewBox.height
-          const margin = Math.max(W, H) * 0.15
-          const vx = baseViewBox.minX - margin
-          const vy = baseViewBox.minY - margin
-          const vw = W + margin * 2
-          const vh = H + margin * 2
-          generatedSvg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`)
-          latestSvg = generatedSvg.outerHTML
+        setGrid(grid)
+        const base = getBaseViewBox()
+        if (base) {
+          viewState = { ...base }
+          redraw()
         }
         const statsText = `Shapes: ${grid.meta.shapeCount} · Export size: ${exportW}×${exportH}px`
         stats.textContent = statsText
         persistSettings(statsText)
         selectedShapeIds.clear()
         selectedLayer = null
-        bindSvgInteractions()
+        bindCanvasInteractions()
         updateSelection()
         status.textContent = 'Art grid generated.'
       } catch (error) {
@@ -2698,37 +2570,20 @@ export function mountArtGridTool(containerElement) {
   }
 
   deleteEntityBtn.addEventListener('click', () => {
-    const svg = previewContent.querySelector('svg')
-    if (!svg) return
-    const metadata = decodeSvgMetadata(svg)
-    if (!metadata) return
-    metadata.shapes = Array.isArray(metadata.shapes) ? metadata.shapes : []
+    if (!currentGrid) return
+    currentGrid.shapes = Array.isArray(currentGrid.shapes) ? currentGrid.shapes : []
     if (selectedShapeIds.size > 0) {
       pushUndoState()
-      const currentViewBoxRaw = svg.getAttribute('viewBox')
       selectedShapeIds.forEach(id => {
-        metadata.shapes = metadata.shapes.filter((entry) => entry.id !== id)
+        currentGrid.shapes = currentGrid.shapes.filter((entry) => entry.id !== id)
       })
       selectedShapeIds.clear()
       selectedLayer = null
-      const baseVb = readBaseViewBox(svg)
-      const { w: delW, h: delH } = baseVb ? { w: baseVb.width, h: baseVb.height } : getEditorSize(readPositiveInt(width.input, 1200), readPositiveInt(height.input, 2400))
-      const grid = {
-        meta: {
-          width: delW,
-          height: delH,
-          seed: readPositiveInt(seed.input, Date.now()),
-          shapeCount: metadata.shapes.length,
-        },
-        shapes: metadata.shapes,
-        background: getBackground(),
-      }
-      latestSvg = renderArtGridSvg(grid)
-      const refreshedSvg = setSvgContent(latestSvg)
-      if (refreshedSvg && currentViewBoxRaw) {
-        refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-      }
-      bindSvgInteractions()
+      currentGrid.meta.shapeCount = currentGrid.shapes.length
+      syncLatestSvg()
+      redraw()
+      bindCanvasInteractions()
+      updateSelection()
       status.textContent = 'Shape deleted.'
       return
     }
@@ -2746,7 +2601,7 @@ export function mountArtGridTool(containerElement) {
       if (event.shiftKey) {
         if (redoStack.length > 0) {
           const current = getCurrentState()
-          if (current.svg) {
+          if (current.grid) {
             undoStack.push(current)
             if (undoStack.length > MAX_UNDO) undoStack.shift()
           }
@@ -2792,12 +2647,8 @@ export function mountArtGridTool(containerElement) {
   })
 
   randomizeBtn.addEventListener('click', () => {
-    // If a layer is selected, only regenerate shapes in that layer
     if (selectedLayer !== null) {
-      const svg = previewContent.querySelector('svg')
-      if (!svg) return
-      const metadata = decodeSvgMetadata(svg)
-      if (!metadata) return
+      if (!currentGrid) return
       setLoadingOverlay(true, defaultLoadingOverlayText)
       setTimeout(() => {
         try {
@@ -2807,13 +2658,12 @@ export function mountArtGridTool(containerElement) {
             return
           }
           pushUndoState()
-          const currentViewBoxRaw = svg.getAttribute('viewBox')
           const exportW = readPositiveInt(width.input, 1200)
           const exportH = readPositiveInt(height.input, 2400)
           const { w: canvasWidth, h: canvasHeight } = getEditorSize(exportW, exportH)
           const scaleToEditor = Math.min(canvasWidth / exportW, canvasHeight / exportH)
-          const layerShapes = metadata.shapes.filter(s => s.layer === selectedLayer)
-          const otherShapes = metadata.shapes.filter(s => s.layer !== selectedLayer)
+          const layerShapes = currentGrid.shapes.filter(s => s.layer === selectedLayer)
+          const otherShapes = currentGrid.shapes.filter(s => s.layer !== selectedLayer)
           const layerSpreadRaw = parseFloat(spreadRow.input.value)
           const layerSpread = Number.isFinite(layerSpreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, layerSpreadRaw)) : spreadDefault
           const layerOptions = {
@@ -2832,25 +2682,14 @@ export function mountArtGridTool(containerElement) {
           }
           const layerGrid = generateArtGrid(layerOptions)
           const newLayerShapes = layerGrid.shapes.map((s) => ({ ...s, layer: selectedLayer }))
-          metadata.shapes = [...otherShapes, ...newLayerShapes]
-          const grid = {
-            meta: {
-              width: canvasWidth,
-              height: canvasHeight,
-              seed: readPositiveInt(seed.input, Date.now()),
-              shapeCount: metadata.shapes.length,
-            },
-            shapes: metadata.shapes,
-            background: getBackground(),
-          }
-          latestSvg = renderArtGridSvg(grid)
-          const refreshedSvg = setSvgContent(latestSvg)
-          if (refreshedSvg && currentViewBoxRaw) {
-            refreshedSvg.setAttribute('viewBox', currentViewBoxRaw)
-          }
+          currentGrid.shapes = [...otherShapes, ...newLayerShapes]
+          currentGrid.meta.shapeCount = currentGrid.shapes.length
+          syncLatestSvg()
+          redraw()
           selectedShapeIds.clear()
           newLayerShapes.forEach(shape => selectedShapeIds.add(shape.id))
-          bindSvgInteractions()
+          bindCanvasInteractions()
+          updateSelection()
           status.textContent = `Regenerated ${newLayerShapes.length} shapes in Layer ${selectedLayer}.`
         } finally {
           setLoadingOverlay(false)
