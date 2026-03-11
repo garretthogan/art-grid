@@ -209,6 +209,18 @@ function createPatternDef(shape, id) {
   }
 }
 
+/** Compare layer ids: negative if A is below B, 0 if same, positive if A is above B. Numeric ascending, then string alphabetical. */
+function compareLayerIds(layerA, layerB) {
+  const a = layerA ?? 1;
+  const b = layerB ?? 1;
+  const aIsNum = typeof a === 'number';
+  const bIsNum = typeof b === 'number';
+  if (aIsNum && bIsNum) return a - b;
+  if (aIsNum && !bIsNum) return -1;
+  if (!aIsNum && bIsNum) return 1;
+  return String(a).localeCompare(String(b));
+}
+
 function renderShape(shape, index) {
   const patternId = `pattern-${index}`;
   const fill = shape.pattern === 'solid' ? shape.color : `url(#${patternId})`;
@@ -265,7 +277,8 @@ export function renderArtGridSvg(grid, options = {}) {
   const height = grid.meta.height;
   const background = grid.background ?? { color: '#000000', textureType: 'solid' };
 
-  const patterns = grid.shapes
+  const shapesDrawOrderSorted = [...grid.shapes].sort((a, b) => compareLayerIds(a.layer, b.layer));
+  const patterns = shapesDrawOrderSorted
     .map((shape, index) => createPatternDef(shape, `pattern-${index}`))
     .join('');
 
@@ -279,7 +292,7 @@ export function renderArtGridSvg(grid, options = {}) {
     bgFill = 'url(#bg-stamp)';
   }
 
-  const shapes = grid.shapes
+  const shapes = shapesDrawOrderSorted
     .map((shape, index) => renderShape(shape, index))
     .join('');
   
@@ -576,12 +589,7 @@ function drawShape(ctx, shape, patternCacheGetter) {
 }
 
 function shapesDrawOrder(shapes) {
-  return [...shapes].sort((a, b) => {
-    const layerA = a.layer ?? 1;
-    const layerB = b.layer ?? 1;
-    if (layerA !== layerB) return layerA - layerB;
-    return 0;
-  });
+  return [...shapes].sort((a, b) => compareLayerIds(a.layer, b.layer));
 }
 
 /**
@@ -678,10 +686,5 @@ export function isPointInShape(shape, sceneX, sceneY) {
  * Shapes in reverse draw order (top-most first) for hit-testing.
  */
 export function shapesHitTestOrder(shapes) {
-  return [...shapes].sort((a, b) => {
-    const layerA = a.layer ?? 1;
-    const layerB = b.layer ?? 1;
-    if (layerB !== layerA) return layerB - layerA;
-    return 0;
-  });
+  return [...shapes].sort((a, b) => compareLayerIds(b.layer, a.layer));
 }

@@ -2109,6 +2109,20 @@ export function mountArtGridTool(containerElement) {
     syncLatestSvg()
   }
 
+  /** Returns unique layer ids in draw order: numeric ascending, then string alphabetical. */
+  function getSortedLayerIds(grid) {
+    const layerSet = new Set()
+    ;(grid?.shapes ?? []).forEach((shape) => layerSet.add(shape.layer != null ? shape.layer : 1))
+    return Array.from(layerSet).sort((a, b) => {
+      const aIsNum = typeof a === 'number'
+      const bIsNum = typeof b === 'number'
+      if (aIsNum && bIsNum) return a - b
+      if (aIsNum) return -1
+      if (bIsNum) return 1
+      return String(a).localeCompare(String(b))
+    })
+  }
+
   function renderLayerList(metadata) {
     layersList.innerHTML = ''
     const layerMap = new Map()
@@ -2170,12 +2184,10 @@ export function mountArtGridTool(containerElement) {
       if (selectedShapeIds.has(id)) btn.classList.add('is-selected')
       btn.textContent = `${shape.type} [${layerDisplay}] (${Number(shape.x).toFixed(0)}, ${Number(shape.y).toFixed(0)})`
       btn.addEventListener('click', (e) => {
-        if (e.shiftKey) {
-          if (selectedShapeIds.has(id)) {
-            selectedShapeIds.delete(id)
-          } else {
-            selectedShapeIds.add(id)
-          }
+        const shift = e.shiftKey || (typeof e.getModifierState === 'function' && e.getModifierState('Shift'))
+        if (shift) {
+          if (selectedShapeIds.has(id)) selectedShapeIds.delete(id)
+          else selectedShapeIds.add(id)
         } else {
           selectedShapeIds.clear()
           selectedShapeIds.add(id)
@@ -2345,9 +2357,11 @@ export function mountArtGridTool(containerElement) {
       const hitShape = hitTestShapes(point.x, point.y)
       if (hitShape) {
         const id = hitShape.id
-        if (event.shiftKey) {
+        const shift = event.shiftKey || (typeof event.getModifierState === 'function' && event.getModifierState('Shift'))
+        if (shift) {
           if (selectedShapeIds.has(id)) selectedShapeIds.delete(id)
           else selectedShapeIds.add(id)
+          selectedLayer = null
           updateSelection()
           event.preventDefault()
           return
@@ -2511,10 +2525,13 @@ export function mountArtGridTool(containerElement) {
         const spreadRaw = parseFloat(spreadRow.input.value)
         const spread = Number.isFinite(spreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, spreadRaw)) : spreadDefault
         const scaleToEditor = Math.min(editorW / exportW, editorH / exportH)
+        const existingShapes = currentGrid?.shapes?.length > 0
+        const genWidth = existingShapes ? currentGrid.meta.width : editorW
+        const genHeight = existingShapes ? currentGrid.meta.height : editorH
         const options = {
           seed: readPositiveInt(seed.input, Date.now()),
-          width: editorW,
-          height: editorH,
+          width: genWidth,
+          height: genHeight,
           shapeCount: readBoundedInt(shapeCount.input, 80, 20, 300),
           spread,
           minSize: Math.max(2, Math.round(readBoundedInt(minSize.input, 8, 2, 100) * scaleToEditor)),
@@ -2526,19 +2543,40 @@ export function mountArtGridTool(containerElement) {
           stamps: stampPool,
         }
         seed.input.value = String(options.seed)
-        const useStampSubset = selectedStampIndices.size > 1
-        const existingStampShapes = (() => {
-          if (useStampSubset) return []
-          if (selectedLayer === 'stamps') return []
-          if (!currentGrid?.shapes) return []
-          return currentGrid.shapes.filter((s) => s.layer === 'stamps')
-        })()
-        const grid = generateArtGrid(options)
-        if (existingStampShapes.length > 0) {
-          grid.shapes.push(...existingStampShapes)
-          grid.meta.shapeCount = grid.shapes.length
+        let grid
+        if (existingShapes) {
+          const sorted = getSortedLayerIds(currentGrid)
+          const topLayer = sorted.length > 0 ? sorted[sorted.length - 1] : 1
+          const newLayerId = typeof topLayer === 'number' ? topLayer + 1 : (() => {
+            const numerics = sorted.filter((id) => typeof id === 'number')
+            return numerics.length > 0 ? Math.max(...numerics) + 1 : 1
+          })()
+          grid = generateArtGrid(options)
+          const newShapes = grid.shapes.map((s) => ({ ...s, layer: newLayerId }))
+          grid = {
+            meta: {
+              width: currentGrid.meta.width,
+              height: currentGrid.meta.height,
+              shapeCount: currentGrid.shapes.length + newShapes.length,
+            },
+            shapes: [...currentGrid.shapes, ...newShapes],
+            background: getBackground(),
+          }
+        } else {
+          const useStampSubset = selectedStampIndices.size > 1
+          const existingStampShapes = (() => {
+            if (useStampSubset) return []
+            if (selectedLayer === 'stamps') return []
+            if (!currentGrid?.shapes) return []
+            return currentGrid.shapes.filter((s) => s.layer === 'stamps')
+          })()
+          grid = generateArtGrid(options)
+          if (existingStampShapes.length > 0) {
+            grid.shapes.push(...existingStampShapes)
+            grid.meta.shapeCount = grid.shapes.length
+          }
+          grid.background = getBackground()
         }
-        grid.background = getBackground()
         setGrid(grid)
         const base = getBaseViewBox()
         if (base) {
@@ -2695,6 +2733,83 @@ export function mountArtGridTool(containerElement) {
         syncLatestSvg()
         redraw()
         status.textContent = `Scaled down ${step}px.`
+      }
+      return
+    }
+    if (event.key === '[') {
+      if (inInput) return
+      if (currentGrid && selectedShapeIds.size > 0) {
+        event.preventDefault()
+        const sorted = getSortedLayerIds(currentGrid)
+        if (sorted.length === 0) return
+        const selectedLayers = new Set()
+        selectedShapeIds.forEach((id) => {
+          const shape = currentGrid.shapes.find((s) => s.id === id)
+          if (shape) selectedLayers.add(shape.layer != null ? shape.layer : 1)
+        })
+        let minIndex = sorted.length
+        selectedLayers.forEach((layer) => {
+          const idx = sorted.indexOf(layer)
+          if (idx !== -1 && idx < minIndex) minIndex = idx
+        })
+        let targetLayer
+        if (minIndex > 0) {
+          targetLayer = sorted[minIndex - 1]
+        } else {
+          const bottom = sorted[0]
+          targetLayer = typeof bottom === 'number' ? bottom - 1 : 0
+        }
+        pushUndoState()
+        selectedShapeIds.forEach((id) => {
+          const shape = currentGrid.shapes.find((s) => s.id === id)
+          if (shape) shape.layer = targetLayer
+        })
+        syncLatestSvg()
+        redraw()
+        updateSelection()
+        const name = typeof targetLayer === 'string' ? targetLayer : `Layer ${targetLayer}`
+        status.textContent = minIndex > 0 ? `Moved to ${name}.` : 'Moved to new layer below.'
+      }
+      return
+    }
+    if (event.key === ']') {
+      if (inInput) return
+      if (currentGrid && selectedShapeIds.size > 0) {
+        event.preventDefault()
+        const sorted = getSortedLayerIds(currentGrid)
+        if (sorted.length === 0) return
+        const selectedLayers = new Set()
+        selectedShapeIds.forEach((id) => {
+          const shape = currentGrid.shapes.find((s) => s.id === id)
+          if (shape) selectedLayers.add(shape.layer != null ? shape.layer : 1)
+        })
+        let maxIndex = -1
+        selectedLayers.forEach((layer) => {
+          const idx = sorted.indexOf(layer)
+          if (idx !== -1 && idx > maxIndex) maxIndex = idx
+        })
+        let targetLayer
+        if (maxIndex < sorted.length - 1) {
+          targetLayer = sorted[maxIndex + 1]
+        } else {
+          const top = sorted[sorted.length - 1]
+          if (typeof top === 'number') {
+            targetLayer = top + 1
+          } else {
+            const numerics = sorted.filter((id) => typeof id === 'number')
+            targetLayer = numerics.length > 0 ? Math.max(...numerics) + 1 : 1
+          }
+        }
+        pushUndoState()
+        selectedShapeIds.forEach((id) => {
+          const shape = currentGrid.shapes.find((s) => s.id === id)
+          if (shape) shape.layer = targetLayer
+        })
+        syncLatestSvg()
+        redraw()
+        updateSelection()
+        const name = typeof targetLayer === 'string' ? targetLayer : `Layer ${targetLayer}`
+        status.textContent = maxIndex < sorted.length - 1 ? `Moved to ${name}.` : 'Moved to new layer above.'
       }
       return
     }
