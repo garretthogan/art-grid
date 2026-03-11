@@ -255,10 +255,6 @@ function randomSeed() {
   return Math.max(1, Math.min(MAX_SEED, hashed))
 }
 
-// Grid divisions so export matches workspace: ~12 major cells across, 5 fine per major (like 24/120 in screen space)
-const EXPORT_GRID_MAJOR_DIVISIONS = 12
-const EXPORT_GRID_FINE_PER_MAJOR = 5
-
 /** Infer pattern name from a <pattern> element in the editor SVG so export matches what's displayed. */
 function inferPatternFromDef(svgEl, patternId) {
   const pattern = svgEl.querySelector(`#${CSS.escape(patternId)}`)
@@ -276,7 +272,7 @@ function inferPatternFromDef(svgEl, patternId) {
 }
 
 function getExportReadySvg(svgText, options = {}) {
-  const { includeGrid = false, exportWidth, exportHeight } = options
+  const { includeBackground = true, exportWidth, exportHeight } = options
   const parser = new DOMParser()
   let doc = parser.parseFromString(svgText, 'image/svg+xml')
   let svg = doc.querySelector('svg')
@@ -316,11 +312,17 @@ function getExportReadySvg(svgText, options = {}) {
       if (!svg) return svgText
     }
   }
-  svg.querySelectorAll('.canvas-boundary, #selection-outlines, .art-shape-hit-area, .hover-outline, #hover-outlines, #stamp-preview').forEach((el) => el.remove())
-  // Ensure bg rect has solid black fill when missing (default; user config from Background tool is preserved)
+  // Never export workspace/guide grid; strip any grid overlay elements
+  svg.querySelectorAll('.canvas-boundary, #selection-outlines, .art-shape-hit-area, .hover-outline, #hover-outlines, #stamp-preview, #export-grid-layer, #export-grid-group').forEach((el) => el.remove())
   const bgRect = svg.querySelector('.bg')
-  if (bgRect && (!bgRect.getAttribute('fill') || bgRect.getAttribute('fill').trim() === '')) {
-    bgRect.setAttribute('fill', '#000000')
+  if (includeBackground) {
+    // Ensure bg rect has solid black fill when missing (default; user config from Background tool is preserved)
+    if (bgRect && (!bgRect.getAttribute('fill') || bgRect.getAttribute('fill').trim() === '')) {
+      bgRect.setAttribute('fill', '#000000')
+    }
+  } else {
+    // Export without background: remove .bg so only art is exported on transparent
+    if (bgRect) bgRect.remove()
   }
   if (exportWidth != null && exportHeight != null && (Number(exportWidth) > 0 && Number(exportHeight) > 0)) {
     const ew = Math.round(Number(exportWidth))
@@ -329,89 +331,6 @@ function getExportReadySvg(svgText, options = {}) {
     svg.setAttribute('height', String(eh))
     svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`)
     svg.setAttribute('data-base-viewbox', `0 0 ${vw} ${vh}`)
-  }
-  if (includeGrid) {
-    // Per-axis spacing so we get exactly 12 even divisions and last line on the edge (no gaps/float errors)
-    const majorSpacingX = vw / EXPORT_GRID_MAJOR_DIVISIONS
-    const majorSpacingY = vh / EXPORT_GRID_MAJOR_DIVISIONS
-    const fineSpacingX = majorSpacingX / EXPORT_GRID_FINE_PER_MAJOR
-    const fineSpacingY = majorSpacingY / EXPORT_GRID_FINE_PER_MAJOR
-    const ns = 'http://www.w3.org/2000/svg'
-    const defs = svg.querySelector('defs') || (() => {
-      const d = doc.createElementNS(ns, 'defs')
-      svg.insertBefore(d, svg.firstChild)
-      return d
-    })()
-    const pattern = doc.createElementNS(ns, 'pattern')
-    pattern.setAttribute('id', 'export-grid-pattern')
-    pattern.setAttribute('x', String(vx))
-    pattern.setAttribute('y', String(vy))
-    pattern.setAttribute('width', String(majorSpacingX))
-    pattern.setAttribute('height', String(majorSpacingY))
-    pattern.setAttribute('patternUnits', 'userSpaceOnUse')
-    const strokeScale = Math.max(0.5, (vw + vh) / 3000)
-    const fineStroke = Math.max(1, 0.25 * strokeScale)
-    const majorStroke = Math.max(2.5, 1.2 * strokeScale)
-    // Fine grid: interior lines only (thin, gray)
-    for (let k = 1; k < EXPORT_GRID_FINE_PER_MAJOR; k++) {
-      const ix = k * fineSpacingX
-      const iy = k * fineSpacingY
-      const lineV = doc.createElementNS(ns, 'line')
-      lineV.setAttribute('x1', String(ix))
-      lineV.setAttribute('y1', '0')
-      lineV.setAttribute('x2', String(ix))
-      lineV.setAttribute('y2', String(majorSpacingY))
-      lineV.setAttribute('stroke', 'rgba(130,130,130,0.28)')
-      lineV.setAttribute('stroke-width', String(fineStroke))
-      pattern.appendChild(lineV)
-      const lineH = doc.createElementNS(ns, 'line')
-      lineH.setAttribute('x1', '0')
-      lineH.setAttribute('y1', String(iy))
-      lineH.setAttribute('x2', String(majorSpacingX))
-      lineH.setAttribute('y2', String(iy))
-      lineH.setAttribute('stroke', 'rgba(130,130,130,0.28)')
-      lineH.setAttribute('stroke-width', String(fineStroke))
-      pattern.appendChild(lineH)
-    }
-    defs.appendChild(pattern)
-    const gridRect = doc.createElementNS(ns, 'rect')
-    gridRect.setAttribute('x', String(vx))
-    gridRect.setAttribute('y', String(vy))
-    gridRect.setAttribute('width', String(vw))
-    gridRect.setAttribute('height', String(vh))
-    gridRect.setAttribute('fill', 'url(#export-grid-pattern)')
-    gridRect.setAttribute('id', 'export-grid-layer')
-    const gridGroup = doc.createElementNS(ns, 'g')
-    gridGroup.setAttribute('id', 'export-grid-group')
-    gridGroup.appendChild(gridRect)
-    // Major grid: thicker, more opaque so large cells clearly encapsulate the small cells (match editor)
-    const majorG = doc.createElementNS(ns, 'g')
-    majorG.setAttribute('stroke', 'rgba(51,51,51,0.65)')
-    majorG.setAttribute('stroke-width', String(majorStroke))
-    for (let i = 0; i <= EXPORT_GRID_MAJOR_DIVISIONS; i++) {
-      const x = vx + i * majorSpacingX
-      const lineV = doc.createElementNS(ns, 'line')
-      lineV.setAttribute('x1', String(x))
-      lineV.setAttribute('y1', String(vy))
-      lineV.setAttribute('x2', String(x))
-      lineV.setAttribute('y2', String(vy + vh))
-      majorG.appendChild(lineV)
-    }
-    for (let i = 0; i <= EXPORT_GRID_MAJOR_DIVISIONS; i++) {
-      const y = vy + i * majorSpacingY
-      const lineH = doc.createElementNS(ns, 'line')
-      lineH.setAttribute('x1', String(vx))
-      lineH.setAttribute('y1', String(y))
-      lineH.setAttribute('x2', String(vx + vw))
-      lineH.setAttribute('y2', String(y))
-      majorG.appendChild(lineH)
-    }
-    gridGroup.appendChild(majorG)
-    if (bgRect && bgRect.nextSibling) {
-      svg.insertBefore(gridGroup, bgRect.nextSibling)
-    } else {
-      svg.appendChild(gridGroup)
-    }
   }
   // Reset viewBox to full canvas so exported SVG fills the frame (not zoom/pan state)
   const baseViewBox = svg.getAttribute('data-base-viewbox')
@@ -1595,8 +1514,9 @@ export function mountArtGridTool(containerElement) {
   const includeGridCheckbox = document.createElement('input')
   includeGridCheckbox.type = 'checkbox'
   includeGridCheckbox.id = 'ag-export-include-grid'
-  includeGridCheckbox.setAttribute('aria-label', 'Include background grid in export')
-  includeGridLabel.append(includeGridCheckbox, document.createTextNode('Include background grid'))
+  includeGridCheckbox.checked = true
+  includeGridCheckbox.setAttribute('aria-label', 'Include background in export')
+  includeGridLabel.append(includeGridCheckbox, document.createTextNode('Include background'))
   includeGridLabel.setAttribute('for', 'ag-export-include-grid')
   saveDropdown.appendChild(includeGridLabel)
   ;['Export SVG', 'Export JPEG', 'Export PNG', 'Export all three'].forEach((label) => {
@@ -1671,8 +1591,8 @@ export function mountArtGridTool(containerElement) {
       try {
         const exportW = readPositiveInt(width.input, 1200)
         const exportH = readPositiveInt(height.input, 2400)
-        const includeGrid = includeGridCheckbox.checked
-        const svgText = getExportReadySvg(latestSvg, { includeGrid, exportWidth: exportW, exportHeight: exportH })
+        const includeBackground = includeGridCheckbox.checked
+        const svgText = getExportReadySvg(latestSvg, { includeBackground, exportWidth: exportW, exportHeight: exportH })
         const base = `art-grid-${Date.now()}`
         if (which === 'svg') {
           downloadSvg(svgText, `${base}.svg`)
