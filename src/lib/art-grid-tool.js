@@ -611,9 +611,9 @@ export function mountArtGridTool(containerElement) {
   const loadingOverlay = document.createElement('div')
   loadingOverlay.className = 'ag-loading-overlay'
   loadingOverlay.setAttribute('aria-hidden', 'true')
-  loadingOverlay.innerHTML = '<span class="ag-loading-overlay-spinner" aria-hidden="true"></span><span class="ag-loading-overlay-text">Generating art grid…</span>'
+  loadingOverlay.innerHTML = '<span class="ag-loading-overlay-spinner" aria-hidden="true"></span><span class="ag-loading-overlay-text">Generating dope throne grid…</span>'
   const loadingOverlayTextEl = loadingOverlay.querySelector('.ag-loading-overlay-text')
-  const defaultLoadingOverlayText = 'Generating art grid…'
+  const defaultLoadingOverlayText = 'Generating dope throne grid…'
   const canvasWrapper = document.createElement('div')
   canvasWrapper.className = 'color-palette-svg-wrapper'
   canvasWrapper.style.position = 'relative'
@@ -627,7 +627,7 @@ export function mountArtGridTool(containerElement) {
   const mainCanvas = document.createElement('canvas')
   mainCanvas.className = 'ag-main-canvas'
   mainCanvas.style.display = 'block'
-  mainCanvas.setAttribute('aria-label', 'Generated art grid')
+  mainCanvas.setAttribute('aria-label', 'Generated dope throne grid')
   const overlayCanvas = document.createElement('canvas')
   overlayCanvas.className = 'ag-overlay-canvas'
   overlayCanvas.style.position = 'absolute'
@@ -942,7 +942,7 @@ export function mountArtGridTool(containerElement) {
   generateNewBtn.type = 'button'
   generateNewBtn.className = 'button ag-generate-new-btn'
   generateNewBtn.textContent = 'Generate'
-  generateNewBtn.title = 'Generate a new art grid'
+  generateNewBtn.title = 'Generate a new dope throne grid'
   generateNewBtn.setAttribute('aria-label', 'Generate')
   controls.appendChild(generateNewBtn)
   
@@ -1563,15 +1563,15 @@ export function mountArtGridTool(containerElement) {
   randomizeBtn.type = 'button'
   randomizeBtn.id = 'ag-randomize-seed'
   randomizeBtn.className = 'mode-gizmo-btn'
-  randomizeBtn.title = 'Generate a new art grid'
-  randomizeBtn.setAttribute('aria-label', 'Generate art grid')
+  randomizeBtn.title = 'Generate a new dope throne grid'
+  randomizeBtn.setAttribute('aria-label', 'Generate dope throne grid')
   randomizeBtn.textContent = '🔄'
   const saveBtn = document.createElement('button')
   saveBtn.type = 'button'
   saveBtn.id = 'ag-save-svg'
   saveBtn.className = 'mode-gizmo-btn'
   saveBtn.title = 'Export – SVG, JPEG, PNG, or all'
-  saveBtn.setAttribute('aria-label', 'Export art grid')
+  saveBtn.setAttribute('aria-label', 'Export dope throne grid')
   saveBtn.textContent = '📥'
   const saveDropdown = document.createElement('div')
   saveDropdown.className = 'save-export-dropdown'
@@ -1616,7 +1616,7 @@ export function mountArtGridTool(containerElement) {
 
   const status = document.createElement('p')
   status.className = 'floor-plan-status'
-  status.textContent = 'Generate an art grid.'
+  status.textContent = 'Generate a dope throne grid.'
   const stats = document.createElement('p')
   stats.className = 'floor-plan-stats'
   stats.textContent = saved?.statsText ?? ''
@@ -1658,7 +1658,7 @@ export function mountArtGridTool(containerElement) {
   saveBtn.addEventListener('click', (e) => {
     e.stopPropagation()
     if (!latestSvg) {
-      status.textContent = 'Generate an art grid before saving.'
+      status.textContent = 'Generate a dope throne grid before saving.'
       return
     }
     saveDropdown.style.display = saveDropdown.style.display === 'none' ? 'block' : 'none'
@@ -2507,7 +2507,7 @@ export function mountArtGridTool(containerElement) {
     isGenerating = true
     setLoadingOverlay(true, defaultLoadingOverlayText)
     setGeneratingState(true)
-    status.textContent = 'Generating art grid...'
+    status.textContent = 'Generating dope throne grid...'
     setTimeout(async () => {
       try {
         const entriesOverride = selectedStampIndices.size > 1
@@ -2526,8 +2526,9 @@ export function mountArtGridTool(containerElement) {
         const spread = Number.isFinite(spreadRaw) ? Math.max(spreadMin, Math.min(spreadMax, spreadRaw)) : spreadDefault
         const scaleToEditor = Math.min(editorW / exportW, editorH / exportH)
         const existingShapes = currentGrid?.shapes?.length > 0
-        const genWidth = existingShapes ? currentGrid.meta.width : editorW
-        const genHeight = existingShapes ? currentGrid.meta.height : editorH
+        const appendNewLayer = existingShapes && selectedShapeIds.size > 0
+        const genWidth = appendNewLayer ? currentGrid.meta.width : editorW
+        const genHeight = appendNewLayer ? currentGrid.meta.height : editorH
         const options = {
           seed: readPositiveInt(seed.input, Date.now()),
           width: genWidth,
@@ -2544,7 +2545,7 @@ export function mountArtGridTool(containerElement) {
         }
         seed.input.value = String(options.seed)
         let grid
-        if (existingShapes) {
+        if (appendNewLayer) {
           const sorted = getSortedLayerIds(currentGrid)
           const topLayer = sorted.length > 0 ? sorted[sorted.length - 1] : 1
           const newLayerId = typeof topLayer === 'number' ? topLayer + 1 : (() => {
@@ -2592,7 +2593,7 @@ export function mountArtGridTool(containerElement) {
         updateSelection()
         status.textContent = 'Art grid generated.'
       } catch (error) {
-        status.textContent = `Could not generate art grid: ${error instanceof Error ? error.message : 'Unknown error'}`
+        status.textContent = `Could not generate dope throne grid: ${error instanceof Error ? error.message : 'Unknown error'}`
       } finally {
         setLoadingOverlay(false)
         isGenerating = false

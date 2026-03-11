@@ -325,8 +325,8 @@ export function renderArtGridSvg(grid, options = {}) {
   });
   
   return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" color-interpolation-filters="sRGB" data-base-viewbox="0 0 ${width} ${height}" role="img" aria-label="Generated art grid">
-  <title>Art Grid - ${width}x${height}px</title>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" color-interpolation-filters="sRGB" data-base-viewbox="0 0 ${width} ${height}" role="img" aria-label="Generated dope throne grid">
+  <title>Dope Throne Grid - ${width}x${height}px</title>
   <desc>Geometric art composition generated with seed ${grid.meta.seed}</desc>
   <metadata id="occult-floorplan-meta">${metadata}</metadata>
   <defs>

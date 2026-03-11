@@ -1,10 +1,10 @@
-# Art Grid Generator
+# Dope Throne Grid
 
 A geometric art composition generator that creates unique SVG artwork.
 
 ## Features
 
-- Generate random geometric art grids
+- Generate random geometric dope throne grids
 - Customize dimensions, shape count, sizes, and patterns
 - Interactive canvas with pan, zoom, and shape manipulation
 - Export high-quality SVG files
