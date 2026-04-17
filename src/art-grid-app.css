@@ -371,6 +371,22 @@ body.tui .floor-plan-entity-empty {
   color: var(--tui-muted);
 }
 
+/* Stamp thumbnail grid */
+body.tui .stamp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: var(--tui-gap);
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 2px;
+  border: 1px solid var(--tui-line-strong);
+  margin-bottom: var(--tui-gap);
+}
+
+body.tui .stamp-grid .stamp-thumb {
+  min-width: 0;
+}
+
 /* Entities tabs (Stamp / Settings / Palette / Background) */
 body.tui .entities-tabs {
   display: flex;
