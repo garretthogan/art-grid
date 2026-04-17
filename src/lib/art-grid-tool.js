@@ -1157,6 +1157,15 @@ export function mountArtGridTool(containerElement) {
   // Scrollable grid of stamp thumbnails (filled by loadStampsFromFolder)
   const stampGridContainer = document.createElement('div')
   stampGridContainer.className = 'stamp-grid'
+  stampGridContainer.style.display = 'grid'
+  stampGridContainer.style.gridTemplateColumns = 'repeat(4, 1fr)'
+  stampGridContainer.style.columnGap = '32px'
+  stampGridContainer.style.rowGap = '32px'
+  stampGridContainer.style.maxHeight = '200px'
+  stampGridContainer.style.overflowY = 'auto'
+  stampGridContainer.style.padding = '2px'
+  stampGridContainer.style.border = '1px solid var(--tui-line-strong)'
+  stampGridContainer.style.marginBottom = '8px'
   
   // Stamp controls
   const stampControls = document.createElement('div')
