@@ -494,10 +494,6 @@ body.tui .mode-toolbar .mode-toolbar-text-btn {
   font-size: 0.9rem;
 }
 
-body.tui .mode-toolbar .save-export-dropdown .button {
-  white-space: nowrap;
-}
-
 body.tui .bg-type-row .bg-type-btn {
   width: 100%;
   min-width: 0;
@@ -752,19 +748,11 @@ body.tui #camera-controls > .panel {
     left: auto;
   }
 
-  /* Mode toolbar (tools): bottom right on mobile – keep visible so Export is always reachable */
+  /* Mode toolbar (tools): bottom right on mobile */
   body.tui .mode-toolbar {
     top: auto;
     bottom: var(--tui-gap);
     right: var(--tui-gap);
     left: auto;
-  }
-
-  /* Export dropdown opens above the button on mobile so it stays on-screen */
-  body.tui .mode-toolbar .save-export-dropdown {
-    top: auto !important;
-    bottom: 100% !important;
-    margin-top: 0 !important;
-    margin-bottom: 4px !important;
   }
 }

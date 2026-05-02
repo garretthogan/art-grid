@@ -1170,42 +1170,6 @@ body.tui .entity-picker-option:hover {
   border-color: var(--tui-cyan);
 }
 
-/* Export list (for modals) */
-body.tui .export-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--tui-gap);
-}
-
-body.tui .export-group {
-  border: var(--tui-bw) solid var(--tui-line);
-  padding: var(--tui-pad-1);
-}
-
-body.tui .export-group > summary {
-  cursor: pointer;
-  list-style: none;
-}
-
-body.tui .export-group > summary::-webkit-details-marker {
-  display: none;
-}
-
-body.tui .export-items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--tui-pad-1);
-  padding: var(--tui-pad-1) 0 0 1rem;
-}
-
-body.tui .export-item,
-body.tui .export-label {
-  display: flex;
-  align-items: center;
-  gap: var(--tui-gap);
-  color: var(--tui-fg);
-}
-
 /* Optional: left-side overlay controls (e.g. art-grid style) */
 body.tui #app.app-layout-row #controls-area {
   bottom: auto;

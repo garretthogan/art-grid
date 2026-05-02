@@ -64,7 +64,7 @@ function generateShape(rng, options, bounds) {
       y,
       size,
       color,
-      pattern,
+      pattern: 'solid',
       rotation,
       layer,
       textureScale,
@@ -167,7 +167,7 @@ function createBackgroundStampPatternDef(background, id, width, height) {
   return `<pattern id="${id}" width="${cellW}" height="${cellH}" patternUnits="userSpaceOnUse"><g transform="scale(${scale})"><path d="${stampPath}" fill="${color}" stroke="none" shape-rendering="crispEdges" /></g></pattern>`;
 }
 
-// Pattern tile size as fraction of shape bbox (0.1 = 10 repetitions per shape). Same in editor and export.
+// Pattern tile size as fraction of shape bbox (0.1 = 10 repetitions per shape).
 const PATTERN_TILE_FRAC = 0.1;
 const PATTERN_STROKE_FRAC = 0.02;
 
@@ -232,7 +232,7 @@ function renderShape(shape, index) {
   const halfSize = shape.size / 2;
   const hitArea = `<rect class="art-shape-hit-area" x="${-halfSize}" y="${-halfSize}" width="${shape.size}" height="${shape.size}" fill="white" fill-opacity="0.001" pointer-events="all" />`;
 
-  // Handle stamp shapes (with optional texture pattern). Use low-res path when present (editing); full-res used on export.
+  // Handle stamp shapes (with optional texture pattern). Use the lightweight editor path when present.
   if (shape.type === 'stamp' && shape.stampPath) {
     const useEditorPath = shape.stampPathEditor != null && shape.stampWidthEditor != null && shape.stampHeightEditor != null
     const pathD = useEditorPath ? shape.stampPathEditor : shape.stampPath
